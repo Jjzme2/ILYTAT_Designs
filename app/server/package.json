@@ -1,0 +1,51 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate-random-string": "node ./src/utils/generateRandomString.js",
+    "migrate": "npx sequelize-cli db:migrate",
+    "rollback": "npx sequelize-cli db:rollback",
+    "start": "node ./src/index.js",
+    "dev": "nodemon ./src/index.js",
+    "logs:rotate": "node ./src/utils/logger/rotate.js",
+    "logs:clean": "node ./src/utils/logger/clean.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "The server for Ilytat Designs",
+  "dependencies": {
+    "axios": "^1.8.1",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "chalk": "^4.1.2",
+    "cls-hooked": "^4.2.2",
+    "compression": "^1.8.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "highlight.js": "^11.11.1",
+    "joi": "^17.13.3",
+    "marked": "^15.0.7",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.12.0",
+    "node-cache": "^5.1.2",
+    "nodemon": "^3.1.9",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1",
+    "path": "^0.12.7",
+    "sanitize-html": "^2.14.0",
+    "sequelize": "^6.37.5",
+    "uuid": "^11.1.0",
+    "winston": "^3.17.0",
+    "winston-daily-rotate-file": "^4.7.1",
+    "ws": "^8.18.1"
+  },
+  "devDependencies": {
+    "sequelize-cli": "^6.6.2"
+  }
+}

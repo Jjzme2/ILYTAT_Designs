@@ -1,0 +1,77 @@
+/* Toast Component Styles */
+.toast-container {
+  position: fixed;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  z-index: var(--z-toast);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  max-width: 400px;
+  width: calc(100% - var(--spacing-8));
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius);
+  background: var(--color-background);
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.2s ease-out;
+}
+
+.toast__content {
+  flex: 1;
+  margin-right: var(--spacing-2);
+}
+
+.toast__close {
+  background: none;
+  border: none;
+  padding: var(--spacing-1);
+  cursor: pointer;
+  color: var(--color-text-light);
+  transition: color 0.2s;
+}
+
+.toast__close:hover {
+  color: var(--color-text);
+}
+
+/* Toast types */
+.toast--success {
+  background: var(--color-success-light);
+  color: var(--color-success-dark);
+}
+
+.toast--error {
+  background: var(--color-danger-light);
+  color: var(--color-danger-dark);
+}
+
+.toast--warning {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+
+.toast--info {
+  background: var(--color-primary-light);
+  color: var(--color-primary-dark);
+}
+
+/* Toast Transitions */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.3s ease;
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(100%);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateX(100%);
+}
