@@ -112,7 +112,7 @@
         </button>
         
         <div class="login-link">
-          Already have an account? <router-link to="/login">Login here</router-link>
+          Already have an account? <router-link to="/auth/login">Login here</router-link>
         </div>
       </form>
     </div>

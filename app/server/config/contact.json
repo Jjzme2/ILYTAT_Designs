@@ -1,0 +1,25 @@
+{
+    "contactDetails": {
+        "company": {
+            "name": "ILYTAT Designs",
+            "website": "https://www.ILYTAT.com",
+            "supportEmail": "support@ilytat.com",
+            "commonEmail": "info@ilytat.com",
+            "phone": "7086271854",
+            "address": {
+                "street": "2045 W Grand Ave STE B",
+                "unit": "PMB 820188",
+                "city": "Chicago",
+                "state": "IL",
+                "zip": "60612",
+                "country": "USA"
+              },
+              "tagline": "Unique. Creative. Yours."
+            },
+            "socialMedia": {
+              "tiktok": "https://www.tiktok.com/@Positive_Echoes",
+              "facebook": "https://www.facebook.com/people/Ilytat-Designs/61565010253579"
+            },
+            "additionalNotes": "For urgent inquiries, please call our phone number."
+    }
+  }

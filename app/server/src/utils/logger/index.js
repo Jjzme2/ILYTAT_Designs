@@ -1,3 +1,8 @@
+/**
+ * Centralized Logging System
+ * Provides a standardized logging pattern throughout the application
+ * Integrates logging with the response system for comprehensive error handling
+ */
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
 const path = require('path');
@@ -101,195 +106,312 @@ const consoleFormat = winston.format.combine(
     })
 );
 
-// Create logger instance
-const baseLogger = winston.createLogger({
-    levels: logLevels,
-    level: process.env.NODE_ENV === 'production' ? 'info' : 'debug',
-    format: logFormat,
-    defaultMeta: {
-        service: 'ilytat-designs-api',
-        environment: process.env.NODE_ENV,
-        version: process.env.npm_package_version
-    },
-    transports: [
-        // Emergency logs
-        new DailyRotateFile({
-            filename: path.join(__dirname, '../../../logs/emergency-%DATE%.log'),
-            datePattern: 'YYYY-MM-DD',
-            level: 'emergency',
-            maxSize: '20m',
-            maxFiles: '14d',
-            zippedArchive: true
-        }),
-        
-        // Error logs
-        new DailyRotateFile({
-            filename: path.join(__dirname, '../../../logs/error-%DATE%.log'),
-            datePattern: 'YYYY-MM-DD',
-            level: 'error',
-            maxSize: '20m',
-            maxFiles: '14d',
-            zippedArchive: true
-        }),
-        
-        // Combined logs
-        new DailyRotateFile({
-            filename: path.join(__dirname, '../../../logs/combined-%DATE%.log'),
-            datePattern: 'YYYY-MM-DD',
-            maxSize: '20m',
-            maxFiles: '14d',
-            zippedArchive: true
-        }),
-        
-        // Performance logs
-        new DailyRotateFile({
-            filename: path.join(__dirname, '../../../logs/performance-%DATE%.log'),
-            datePattern: 'YYYY-MM-DD',
-            maxSize: '20m',
-            maxFiles: '7d',
-            zippedArchive: true
-        })
-    ]
-});
+class LoggerFactory {
+    constructor(options = {}) {
+        this.options = options;
+    }
 
-// Development console logging
-if (process.env.NODE_ENV !== 'production') {
-    baseLogger.add(new winston.transports.Console({
-        format: consoleFormat
-    }));
+    createLogger() {
+        const logger = winston.createLogger({
+            levels: logLevels,
+            level: this.options.level || (process.env.NODE_ENV === 'production' ? 'info' : 'debug'),
+            format: logFormat,
+            defaultMeta: {
+                service: 'ilytat-designs-api',
+                environment: process.env.NODE_ENV,
+                version: process.env.npm_package_version
+            },
+            transports: [
+                // Emergency logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/emergency-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'emergency',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+                
+                // Error logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/error-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'error',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+                
+                // Combined logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/combined-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+                
+                // Performance logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/performance-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    maxSize: '20m',
+                    maxFiles: '7d',
+                    zippedArchive: true
+                }),
+
+                // Debug logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/debug-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'debug',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+
+                // Info logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/info-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'info',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+
+                // Warn logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/warn-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'warn',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+
+                // Notice logs
+                new DailyRotateFile({
+                    filename: path.join(__dirname, '../../../logs/notice-%DATE%.log'),
+                    datePattern: 'YYYY-MM-DD',
+                    level: 'notice',
+                    maxSize: '20m',
+                    maxFiles: '14d',
+                    zippedArchive: true
+                }),
+                
+            ]
+        });
+
+        // Development console logging
+        if (process.env.NODE_ENV !== 'production') {
+            logger.add(new winston.transports.Console({
+                format: consoleFormat
+            }));
+        }
+
+        return logger;
+    }
+
+    createIntegratedLogger() {
+        const logger = this.createLogger();
+
+        // Correlation ID middleware
+        logger.correlationMiddleware = (req, res, next) => {
+            namespace.run(() => {
+                const correlationId = req.headers['x-correlation-id'] || 
+                                    require('crypto').randomBytes(16).toString('hex');
+                namespace.set('correlationId', correlationId);
+                res.set('X-Correlation-ID', correlationId);
+                next();
+            });
+        };
+
+        // Enhanced request logger
+        logger.requestLogger = (req, res, next) => {
+            const startTime = performance.now();
+            const correlationId = namespace.get('correlationId');
+
+            // Log request
+            logger.info('Request received', {
+                correlationId,
+                request: {
+                    method: req.method,
+                    url: req.originalUrl,
+                    headers: req.headers,
+                    query: req.query,
+                    body: req.method !== 'GET' ? req.body : undefined,
+                    ip: req.ip,
+                    userId: req.user?.id
+                }
+            });
+
+            // Capture response
+            const originalSend = res.send;
+            res.send = function(body) {
+                res.send = originalSend;
+                res.body = body;
+                return originalSend.apply(res, arguments);
+            };
+
+            // Log response
+            res.on('finish', () => {
+                const duration = performance.now() - startTime;
+                const level = res.statusCode >= 400 ? 'error' : 'info';
+
+                logger[level]('Response sent', {
+                    correlationId,
+                    response: {
+                        statusCode: res.statusCode,
+                        duration: `${duration.toFixed(2)}ms`,
+                        headers: res.getHeaders(),
+                        body: res.body,
+                        contentLength: res.get('Content-Length')
+                    },
+                    performance: {
+                        memory: process.memoryUsage(),
+                        cpu: process.cpuUsage()
+                    }
+                });
+            });
+
+            next();
+        };
+
+        logger.logError = function(error, context = {}) {
+            const logEntry = {
+                type: 'ERROR',
+                message: error.message,
+                stack: error.stack,
+                code: error.code,
+                ...context,
+                timestamp: new Date().toISOString()
+            };
+            this.error('Error occurred', logEntry);
+        };
+
+        logger.logDatabase = function(query, duration, result) {
+            const logEntry = {
+                type: 'DATABASE',
+                query,
+                duration,
+                result,
+                timestamp: new Date().toISOString()
+            };
+            this.debug('Database operation', logEntry);
+        };
+
+        logger.logSecurity = function(event, context = {}) {
+            const logEntry = {
+                type: 'SECURITY',
+                event,
+                ...context,
+                timestamp: new Date().toISOString()
+            };
+            this.info('Security event', logEntry);
+        };
+
+        logger.logPerformance = function(metric, value, context = {}) {
+            const logEntry = {
+                type: 'PERFORMANCE',
+                metric,
+                value,
+                ...context,
+                timestamp: new Date().toISOString()
+            };
+            this.debug('Performance metric', logEntry);
+        };
+
+        logger.logBusiness = function(action, data, context = {}) {
+            const logEntry = {
+                type: 'BUSINESS',
+                action,
+                data,
+                ...context,
+                timestamp: new Date().toISOString()
+            };
+            this.info('Business event', logEntry);
+        };
+
+        logger.logAudit = function(action, before, after, context = {}) {
+            const logEntry = {
+                type: 'AUDIT',
+                action,
+                changes: {
+                    before,
+                    after
+                },
+                ...context,
+                timestamp: new Date().toISOString()
+            };
+            this.info('Audit event', logEntry);
+        }
+
+        // Add response object with business method for structured logging
+        logger.response = {
+            business: function(data) {
+                const logData = {
+                    type: 'BUSINESS_RESPONSE',
+                    ...data,
+                    timestamp: new Date().toISOString()
+                };
+                
+                // Add chainable methods for additional context
+                return {
+                    withRequestDetails: function(reqDetails) {
+                        logData.request = typeof reqDetails === 'object' && reqDetails.ip ? 
+                            { ip: reqDetails.ip, userAgent: reqDetails.headers?.['user-agent'] } : 
+                            reqDetails;
+                        return this;
+                    },
+                    withPerformanceMetrics: function(metrics) {
+                        logData.performance = metrics;
+                        return this;
+                    },
+                    withUserContext: function(userContext) {
+                        logData.user = userContext;
+                        return this;
+                    },
+                    withSecurityDetails: function(details) {
+                        logData.security = details;
+                        return this;
+                    },
+                    log: function(level = 'info') {
+                        logger[level](data.message || 'Business response', logData);
+                        return this;
+                    }
+                };
+            }
+        };
+
+        return logger;
+    }
 }
 
-// Correlation ID middleware
-baseLogger.correlationMiddleware = (req, res, next) => {
-    namespace.run(() => {
-        const correlationId = req.headers['x-correlation-id'] || 
-                            require('crypto').randomBytes(16).toString('hex');
-        namespace.set('correlationId', correlationId);
-        res.set('X-Correlation-ID', correlationId);
-        next();
-    });
-};
+/**
+ * Create the application's main logger instance with integrated response support
+ * This is a singleton that should be used throughout the application
+ */
+const loggerFactory = new LoggerFactory();
+const logger = loggerFactory.createIntegratedLogger();
 
-// Enhanced request logger
-baseLogger.requestLogger = (req, res, next) => {
-    const startTime = performance.now();
-    const correlationId = namespace.get('correlationId');
-
-    // Log request
-    baseLogger.info('Request received', {
-        correlationId,
-        request: {
-            method: req.method,
-            url: req.originalUrl,
-            headers: req.headers,
-            query: req.query,
-            body: req.method !== 'GET' ? req.body : undefined,
-            ip: req.ip,
-            userId: req.user?.id
-        }
-    });
-
-    // Capture response
-    const originalSend = res.send;
-    res.send = function(body) {
-        res.send = originalSend;
-        res.body = body;
-        return originalSend.apply(res, arguments);
-    };
-
-    // Log response
-    res.on('finish', () => {
-        const duration = performance.now() - startTime;
-        const level = res.statusCode >= 400 ? 'error' : 'info';
-
-        baseLogger[level]('Response sent', {
-            correlationId,
-            response: {
-                statusCode: res.statusCode,
-                duration: `${duration.toFixed(2)}ms`,
-                headers: res.getHeaders(),
-                body: res.body,
-                contentLength: res.get('Content-Length')
-            },
-            performance: {
-                memory: process.memoryUsage(),
-                cpu: process.cpuUsage()
-            }
-        });
-    });
-
-    next();
-};
-
-const logger = Object.assign(baseLogger, {
-    logError: function(error, context = {}) {
-        const logEntry = {
-            type: 'ERROR',
-            message: error.message,
-            stack: error.stack,
-            code: error.code,
-            ...context,
-            timestamp: new Date().toISOString()
-        };
-        this.error('Error occurred', logEntry);
-    },
-
-    logDatabase: function(query, duration, result) {
-        const logEntry = {
-            type: 'DATABASE',
-            query,
-            duration,
-            result,
-            timestamp: new Date().toISOString()
-        };
-        this.debug('Database operation', logEntry);
-    },
-
-    logSecurity: function(event, context = {}) {
-        const logEntry = {
-            type: 'SECURITY',
-            event,
-            ...context,
-            timestamp: new Date().toISOString()
-        };
-        this.info('Security event', logEntry);
-    },
-
-    logPerformance: function(metric, value, context = {}) {
-        const logEntry = {
-            type: 'PERFORMANCE',
-            metric,
-            value,
-            ...context,
-            timestamp: new Date().toISOString()
-        };
-        this.debug('Performance metric', logEntry);
-    },
-
-    logBusiness: function(action, data, context = {}) {
-        const logEntry = {
-            type: 'BUSINESS',
-            action,
-            data,
-            ...context,
-            timestamp: new Date().toISOString()
-        };
-        this.info('Business event', logEntry);
-    },
-
-    logAudit: function(action, before, after, context = {}) {
-        const logEntry = {
-            type: 'AUDIT',
-            action,
-            changes: {
-                before,
-                after
-            },
-            ...context,
-            timestamp: new Date().toISOString()
-        };
-        this.info('Audit event', logEntry);
-    }
-});
-
+// Export the main logger instance
 module.exports = logger;
+
+// Export factory and utilities for dependency injection and testing
+module.exports.LoggerFactory = LoggerFactory;
+
+/**
+ * Create a custom logger instance with provided options
+ * Useful for dependency injection or service-specific logging
+ * 
+ * @param {Object} options - Custom logger options
+ * @param {boolean} [withResponseFactory=true] - Whether to include the response factory
+ * @returns {Object} Custom logger instance
+ */
+module.exports.createLogger = (options = {}, withResponseFactory = true) => {
+    const factory = new LoggerFactory(options);
+    return withResponseFactory 
+        ? factory.createIntegratedLogger()
+        : factory.createLogger();
+};

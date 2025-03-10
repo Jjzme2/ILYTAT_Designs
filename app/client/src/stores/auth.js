@@ -12,7 +12,10 @@ export const useAuthStore = defineStore('auth', {
 
   getters: {
     isAuthenticated: (state) => !!state.token,
-    getUser: (state) => state.user
+    getUser: (state) => state.user,
+    hasRole: (state) => (role) => {
+      return state.user && state.user.roles && state.user.roles.includes(role);
+    }
   },
 
   actions: {
@@ -49,15 +52,40 @@ export const useAuthStore = defineStore('auth', {
 
     async login(credentials) {
       try {
+        this.loading = true;
         const response = await axios.post('/api/auth/login', credentials);
-        if (response.data.success) {
+        if (response.success) {
           const { accessToken, refreshToken } = response.data.data;
           this.setTokens(accessToken, refreshToken);
           this.user = response.data.data.user;
         }
         return response.data;
       } catch (error) {
+        // If this is a verification error, extract the detailed information
+        if (error.response?.status === 403 && 
+            error.response?.data?.error?.details?.requiresVerification) {
+          
+          // Restructure the error to make it more useful to the UI
+          throw {
+            ...error,
+            response: {
+              ...error.response,
+              data: {
+                ...error.response.data,
+                details: {
+                  requiresVerification: true,
+                  email: error.response.data.error.details.email,
+                  emailInfo: error.response.data.error.actions.find(a => a.type === 'check_dev_email') 
+                    ? { instructions: error.response.data.error.actions.find(a => a.type === 'check_dev_email').message } 
+                    : null
+                }
+              }
+            }
+          };
+        }
         throw error;
+      } finally {
+        this.loading = false;
       }
     },
 
@@ -98,6 +126,77 @@ export const useAuthStore = defineStore('auth', {
         return response.data;
       } catch (error) {
         throw error;
+      }
+    },
+
+    async forgotPassword(email) {
+      try {
+        const response = await axios.post('/api/auth/forgot-password', { email });
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    async resetPassword(token, newPassword) {
+      try {
+        const response = await axios.post('/api/auth/reset-password', { 
+          token, 
+          newPassword 
+        });
+        return response.data;
+      } catch (error) {
+        throw error;
+      }
+    },
+
+    async resendVerificationEmail(email) {
+      try {
+        this.loading = true;
+        const response = await axios.post('/api/auth/resend-verification', { email });
+        
+        // Extract development email info if available
+        if (response.data.data && response.data.data.devMode) {
+          const emailServiceInfo = response.data.data.emailServiceInfo || {};
+          return {
+            ...response.data,
+            emailInfo: {
+              mode: emailServiceInfo.mode,
+              providerUrl: emailServiceInfo.providerUrl,
+              instructions: emailServiceInfo.instructions,
+              saveToFile: emailServiceInfo.saveToFile || { enabled: false }
+            }
+          };
+        }
+        
+        return response.data;
+      } catch (error) {
+        // If this is a service unavailable error with dev details
+        if (error.response?.status === 503 && 
+            error.response?.data?.error?.details?.devMode) {
+          
+          // Restructure the error to make it more useful to the UI
+          const actions = error.response.data.error.actions || [];
+          const instructions = actions.map(a => a.message).join(' ');
+          
+          throw {
+            ...error,
+            response: {
+              ...error.response,
+              data: {
+                message: 'Email service unavailable in development mode',
+                details: {
+                  emailInfo: {
+                    instructions: `${error.response.data.error.message} ${instructions}`
+                  }
+                }
+              }
+            }
+          };
+        }
+        throw error;
+      } finally {
+        this.loading = false;
       }
     },
 

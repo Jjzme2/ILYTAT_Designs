@@ -23,14 +23,11 @@ const sequelize = new Sequelize(
     dialectOptions: dbConfig.dialectOptions,
     define: {
       timestamps: true,
-      underscored: true,
-      underscoredAll: true,
-      createdAt: 'created_at',
-      updatedAt: 'updated_at',
-      deletedAt: 'deleted_at',
+      underscored: false,
+      underscoredAll: false,
       paranoid: true,
       defaultScope: {
-        attributes: { exclude: ['deleted_at'] }
+        attributes: { exclude: ['deletedAt'] }
       }
     }
   }
@@ -70,25 +67,22 @@ const initializeDatabase = async () => {
       throw new Error('Failed to establish database connection');
     }
 
-    // Run migrations in non-production environments
-    if (env !== 'production') {
-      await runMigrations();
-    }
+    // Run migrations in all environments
+    // This is the recommended approach for schema changes
+    logger.info('Running database migrations...');
+    await runMigrations();
+    logger.info('Database migrations completed successfully');
 
-    // Sync models (without force)
-    if (env !== 'production') {
-      await sequelize.sync({ 
-        alter: false, // Don't alter tables automatically
-        hooks: {
-          beforeSync: async () => {
-            await sequelize.query('SET FOREIGN_KEY_CHECKS = 0');
-          },
-          afterSync: async () => {
-            await sequelize.query('SET FOREIGN_KEY_CHECKS = 1');
-          }
-        }
-      });
-      logger.info('Database synchronized successfully');
+    // Only run seeders in development environment if SEED_DB env var is set
+    if (env === 'development' && process.env.SEED_DB === 'true') {
+      try {
+        logger.info('Running database seeders...');
+        await execPromise('npx sequelize-cli db:seed:all');
+        logger.info('Database seeders completed successfully');
+      } catch (seedError) {
+        logger.error('Error running seeders:', seedError);
+        // Continue despite seeder errors - they're not critical for app function
+      }
     }
 
     return true;

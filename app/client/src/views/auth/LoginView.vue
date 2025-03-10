@@ -2,6 +2,33 @@
   <div class="login-container">
     <div class="login-form">
       <h2>Login</h2>
+      
+      <!-- Email verification alert -->
+      <div v-if="verificationAlert" class="alert alert-warning">
+        <p>{{ verificationAlert.message }}</p>
+        <div v-if="verificationAlert.emailInfo" class="dev-info">
+          <p><strong>Development Email Information:</strong></p>
+          <p>{{ verificationAlert.emailInfo.instructions }}</p>
+          <p v-if="verificationAlert.emailInfo.saveToFile.enabled">
+            Email files saved to: {{ verificationAlert.emailInfo.saveToFile.location }}
+          </p>
+        </div>
+        <div class="alert-actions">
+          <button 
+            class="btn btn-secondary btn-sm" 
+            @click="resendVerificationEmail(verificationAlert.email)"
+            :disabled="resendingEmail"
+          >
+            {{ resendingEmail ? 'Sending...' : 'Resend Verification Email' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- General error alert -->
+      <div v-if="errorMessage" class="alert alert-danger">
+        <p>{{ errorMessage }}</p>
+      </div>
+
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label for="email">Email</label>
@@ -27,10 +54,16 @@
           />
         </div>
 
-        <button type="submit" class="btn btn-primary">Login</button>
+        <div class="forgot-password-link">
+          <router-link to="/auth/forgot-password">Forgot your password?</router-link>
+        </div>
+
+        <button type="submit" class="btn btn-primary" :disabled="loading">
+          {{ loading ? 'Logging in...' : 'Login' }}
+        </button>
         
         <div class="register-link">
-          Don't have an account? <router-link to="/register">Register here</router-link>
+          Don't have an account? <router-link to="/auth/register">Register here</router-link>
         </div>
       </form>
     </div>
@@ -58,21 +91,68 @@ export default {
     })
     
     const passwordError = ref('')
+    const loading = ref(false)
+    const verificationAlert = ref(null)
+    const resendingEmail = ref(false)
+    const errorMessage = ref('')
 
     const handleLogin = async () => {
       try {
+        loading.value = true
+        verificationAlert.value = null
+        passwordError.value = ''
+        errorMessage.value = ''
+        
         await authStore.login(form.value)
         router.push('/dashboard')
       } catch (error) {
         console.error('Login error:', error)
-        passwordError.value = 'Invalid email or password'
+        
+        // Check for email verification error
+        if (error.response?.status === 403 && 
+            error.response?.data?.details?.requiresVerification) {
+          const details = error.response.data.details
+          verificationAlert.value = {
+            message: 'Your email has not been verified. Please check your inbox for the verification email or click the button below to resend it.',
+            email: details.email || form.value.email,
+            emailInfo: details.emailInfo
+          }
+        } else {
+          passwordError.value = 'Invalid email or password'
+        }
+      } finally {
+        loading.value = false
+      }
+    }
+
+    const resendVerificationEmail = async (email) => {
+      try {
+        resendingEmail.value = true
+        const result = await authStore.resendVerificationEmail(email || form.value.email)
+        verificationAlert.value = {
+          message: 'Verification email sent successfully! Please check your inbox.',
+          email: email || form.value.email
+        }
+      } catch (error) {
+        console.error('Failed to resend verification email:', error)
+        verificationAlert.value = {
+          message: 'Failed to resend verification email. Please try again later.',
+          email: email || form.value.email
+        }
+      } finally {
+        resendingEmail.value = false
       }
     }
 
     return {
       form,
       passwordError,
-      handleLogin
+      loading,
+      verificationAlert,
+      resendingEmail,
+      errorMessage,
+      handleLogin,
+      resendVerificationEmail
     }
   }
 }
@@ -131,8 +211,65 @@ h2 {
   transition: background-color 0.2s;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
+}
+
+.btn-primary:disabled {
+  background-color: #8abfff;
+  cursor: not-allowed;
+}
+
+.alert {
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  border-radius: 4px;
+}
+
+.alert-warning {
+  background-color: #fff3cd;
+  border: 1px solid #ffecb5;
+  color: #856404;
+}
+
+.alert-actions {
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
+.btn-secondary {
+  padding: 0.5rem 1rem;
+  background-color: #6c757d;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.btn-secondary:disabled {
+  background-color: #a1a8ae;
+  cursor: not-allowed;
+}
+
+.forgot-password-link {
+  text-align: right;
+  margin-bottom: 1.5rem;
+}
+
+.forgot-password-link a {
+  color: #6c757d;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.forgot-password-link a:hover {
+  color: #007bff;
+  text-decoration: underline;
 }
 
 .register-link {
@@ -147,5 +284,21 @@ h2 {
 
 .register-link a:hover {
   text-decoration: underline;
+}
+
+.dev-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.dev-info p {
+  margin-bottom: 0.5rem;
+}
+
+.dev-info strong {
+  font-weight: 600;
 }
 </style>

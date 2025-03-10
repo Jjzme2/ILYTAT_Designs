@@ -1,0 +1,5 @@
+# Ignore all personal files
+personal/*
+
+# But keep the directory structure with .gitkeep
+!personal/.gitkeep

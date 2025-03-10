@@ -15,40 +15,40 @@ module.exports = {
 
         const columns = await queryInterface.describeTable(tableName);
         
-        // Add created_at if it doesn't exist
-        if (!columns.created_at) {
-          await queryInterface.addColumn(tableName, 'created_at', {
+        // Add createdAt if it doesn't exist
+        if (!columns.createdAt) {
+          await queryInterface.addColumn(tableName, 'createdAt', {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
           }, { transaction });
         }
 
-        // Add updated_at if it doesn't exist
-        if (!columns.updated_at) {
-          await queryInterface.addColumn(tableName, 'updated_at', {
+        // Add updatedAt if it doesn't exist
+        if (!columns.updatedAt) {
+          await queryInterface.addColumn(tableName, 'updatedAt', {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: Sequelize.literal('CURRENT_TIMESTAMP')
           }, { transaction });
         }
 
-        // Add deleted_at if it doesn't exist (for soft deletes)
-        if (!columns.deleted_at) {
-          await queryInterface.addColumn(tableName, 'deleted_at', {
+        // Add deletedAt if it doesn't exist (for soft deletes)
+        if (!columns.deletedAt) {
+          await queryInterface.addColumn(tableName, 'deletedAt', {
             type: DataTypes.DATE,
             allowNull: true
           }, { transaction });
         }
 
         // Add indexes for timestamp columns
-        await queryInterface.addIndex(tableName, ['created_at'], {
-          name: `${tableName}_created_at_idx`,
+        await queryInterface.addIndex(tableName, ['createdAt'], {
+          name: `${tableName}_createdAt_idx`,
           transaction
         });
 
-        await queryInterface.addIndex(tableName, ['updated_at'], {
-          name: `${tableName}_updated_at_idx`,
+        await queryInterface.addIndex(tableName, ['updatedAt'], {
+          name: `${tableName}_updatedAt_idx`,
           transaction
         });
       };
@@ -79,13 +79,13 @@ module.exports = {
         if (!tableExists) continue;
 
         // Remove indexes first
-        await queryInterface.removeIndex(table, `${table}_created_at_idx`, { transaction });
-        await queryInterface.removeIndex(table, `${table}_updated_at_idx`, { transaction });
+        await queryInterface.removeIndex(table, `${table}_createdAt_idx`, { transaction });
+        await queryInterface.removeIndex(table, `${table}_updatedAt_idx`, { transaction });
 
         // Remove timestamp columns
-        await queryInterface.removeColumn(table, 'deleted_at', { transaction });
-        await queryInterface.removeColumn(table, 'updated_at', { transaction });
-        await queryInterface.removeColumn(table, 'created_at', { transaction });
+        await queryInterface.removeColumn(table, 'deletedAt', { transaction });
+        await queryInterface.removeColumn(table, 'updatedAt', { transaction });
+        await queryInterface.removeColumn(table, 'createdAt', { transaction });
       }
 
       await transaction.commit();

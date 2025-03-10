@@ -1,18 +1,80 @@
-const logger = require('../utils/logger/baseLogger');
-const { LogFactory, MetricFactory } = require('../utils/logger/factories');
+/**
+ * Enhanced Logging Middleware
+ * Integrates with our comprehensive logging and response system
+ */
+const logger = require('../utils/logger');
+const { v4: uuidv4 } = require('uuid');
+const { performance } = require('perf_hooks');
 
-// Request logging middleware
+/**
+ * Create sanitized log object from request data
+ * 
+ * @param {Object} req - Express request object
+ * @param {Object} [additionalData={}] - Additional data to include
+ * @returns {Object} Sanitized log object
+ */
+const createRequestLog = (req, additionalData = {}) => {
+    // Create base log object
+    const log = {
+        request: {
+            method: req.method,
+            url: req.originalUrl,
+            route: req.route?.path || 'unknown',
+            params: req.params,
+            query: req.query,
+            // Only include body for non-GET requests
+            ...(req.method !== 'GET' && { body: req.body }),
+            ip: req.ip,
+            userAgent: req.headers['user-agent'],
+            referrer: req.headers['referer']
+        },
+        user: req.user ? {
+            id: req.user.id,
+            role: req.user.role
+        } : undefined,
+        ...additionalData
+    };
+
+    // Sanitize sensitive data
+    if (log.request.body) {
+        // Mask sensitive fields like passwords
+        const sensitiveFields = ['password', 'token', 'key', 'secret', 'credit_card', 'card_number'];
+        for (const field of sensitiveFields) {
+            if (log.request.body[field]) {
+                log.request.body[field] = '********';
+            }
+        }
+    }
+
+    return log;
+};
+
+/**
+ * Request correlation middleware
+ * Adds correlation ID to track requests across services
+ */
+const correlationMiddleware = logger.correlationMiddleware;
+
+/**
+ * Request logging middleware
+ * Logs all incoming requests and their responses
+ */
 const requestLogger = (req, res, next) => {
-    req.startTime = Date.now();
+    // Generate a unique request ID for tracking if not already set by correlation middleware
+    req.requestId = req.requestId || uuidv4();
     
-    // Log the incoming request
-    const requestLog = LogFactory.createApiLog(req);
-    logger.info('Incoming request', requestLog);
+    // Record start time for performance tracking
+    req.startTime = performance.now();
+    
+    // Create and log the request
+    const requestLog = createRequestLog(req);
+    requestLog.requestId = req.requestId;
+    
+    // Use our enhanced logger to log the request
+    logger.info('Request received', requestLog);
 
-    // Increment request metrics
-    MetricFactory.incrementMetric('http.requests.total');
-    MetricFactory.incrementMetric(`http.requests.${req.method.toLowerCase()}`);
-    MetricFactory.incrementMetric(`http.requests.route.${req.route?.path || 'unknown'}`);
+    // Set the requestId as a response header
+    res.setHeader('X-Request-ID', req.requestId);
 
     // Capture response
     const originalSend = res.send;
@@ -24,79 +86,133 @@ const requestLogger = (req, res, next) => {
 
     // Log response on finish
     res.on('finish', () => {
-        const duration = Date.now() - req.startTime;
+        const duration = performance.now() - req.startTime;
         
-        // Create response log
-        const responseLog = LogFactory.createApiLog(req, {
-            response: {
-                statusCode: res.statusCode,
-                duration,
-                headers: res.getHeaders(),
-                body: res.responseData
-            }
-        });
+        // Create network response using our enhanced response system
+        const responseData = {
+            statusCode: res.statusCode,
+            duration: `${duration.toFixed(2)}ms`,
+            headers: res.getHeaders(),
+            // Don't include potentially large response bodies in logs
+            size: res.get('Content-Length')
+        };
+        
+        // Create a response log
+        const responseLog = {
+            requestId: req.requestId,
+            response: responseData,
+            duration
+        };
 
-        // Log based on status code
+        // Create an appropriate response based on status code
         if (res.statusCode >= 500) {
-            logger.error('Server error response', responseLog);
-            MetricFactory.incrementMetric('http.errors.server');
+            // Create and log server error response
+            const errorResponse = logger.response.error({
+                error: new Error(`Server error: ${res.statusCode}`),
+                message: 'Server error response',
+                userMessage: 'An unexpected error occurred on the server',
+                statusCode: res.statusCode
+            }).withRequestDetails(req);
+            
+            logger.error(errorResponse);
         } else if (res.statusCode >= 400) {
-            logger.warn('Client error response', responseLog);
-            MetricFactory.incrementMetric('http.errors.client');
+            // Create and log client error response
+            const errorResponse = logger.response.error({
+                error: new Error(`Client error: ${res.statusCode}`),
+                message: 'Client error response',
+                userMessage: 'The request could not be completed',
+                statusCode: res.statusCode
+            }).withRequestDetails(req);
+            
+            logger.warn(errorResponse);
         } else {
-            logger.info('Success response', responseLog);
-            MetricFactory.incrementMetric('http.success');
+            // Create and log network response for success
+            const networkResponse = logger.response.network({
+                success: true,
+                message: 'Request successful',
+                statusCode: res.statusCode
+            }).withLatency({
+                requestDuration: duration
+            }).withRequestDetails({
+                method: req.method,
+                url: req.originalUrl,
+                route: req.route?.path
+            });
+            
+            logger.info(networkResponse);
         }
-
-        // Track response time
-        MetricFactory.setMetric('http.response_time.last', duration);
-        MetricFactory.incrementMetric('http.response_time.total', duration);
     });
 
     next();
 };
 
-// Error logging middleware
+/**
+ * Error logging middleware
+ * Enhanced error logging with our response system
+ */
 const errorLogger = (error, req, res, next) => {
-    const errorLog = LogFactory.createApiLog(req, {
-        error: {
-            message: error.message,
-            stack: error.stack,
-            type: error.type || 'UnknownError',
-            code: error.statusCode || 500
-        }
+    // Create error response with our enhanced response system
+    const errorResponse = logger.response.error({
+        error,
+        message: `Request error: ${error.message}`,
+        userMessage: 'An error occurred processing your request',
+        statusCode: error.statusCode || 500
+    }).withRequestDetails({
+        method: req.method,
+        url: req.originalUrl,
+        route: req.route?.path,
+        requestId: req.requestId,
+        userId: req.user?.id
     });
-
-    logger.error('Request error', errorLog);
-    MetricFactory.incrementMetric('errors.total');
-    MetricFactory.incrementMetric(`errors.type.${error.type || 'unknown'}`);
-
+    
+    // Log the error with our enhanced logger
+    logger.error(errorResponse);
+    
     next(error);
 };
 
-// Performance monitoring middleware
+/**
+ * Performance monitoring middleware
+ * Tracks request performance and logs slow requests
+ */
 const performanceLogger = (threshold = 1000) => (req, res, next) => {
-    const start = process.hrtime();
+    const start = performance.now();
 
     res.on('finish', () => {
-        const [seconds, nanoseconds] = process.hrtime(start);
-        const duration = (seconds * 1000) + (nanoseconds / 1000000);
+        const duration = performance.now() - start;
 
         if (duration > threshold) {
-            const perfLog = LogFactory.createPerformanceLog('slow_request', duration, {
-                threshold,
+            // Create business response for performance monitoring
+            const perfResponse = logger.response.business({
+                success: false,
+                message: 'Slow request detected',
+                userMessage: 'The operation took longer than expected',
+                data: {
+                    duration: `${duration.toFixed(2)}ms`,
+                    threshold: `${threshold}ms`
+                }
+            }).withRequestDetails({
+                method: req.method,
+                url: req.originalUrl,
                 route: req.route?.path,
-                method: req.method
+                requestId: req.requestId
+            }).withPerformanceMetrics({
+                requestDuration: duration,
+                memoryUsage: process.memoryUsage(),
+                cpuUsage: process.cpuUsage()
             });
-            logger.warn('Slow request detected', perfLog);
-            MetricFactory.incrementMetric('performance.slow_requests');
+            
+            logger.warn(perfResponse);
         }
     });
 
     next();
 };
 
-// Security monitoring middleware
+/**
+ * Security monitoring middleware
+ * Detects and logs security events
+ */
 const securityLogger = (req, res, next) => {
     const securityEvents = [];
 
@@ -117,22 +233,36 @@ const securityLogger = (req, res, next) => {
         });
     }
 
-    // Log security events
+    // Log security events using our enhanced response system
     for (const event of securityEvents) {
-        const securityLog = LogFactory.createSecurityLog(event, {
+        // Create security-specific response
+        const securityResponse = logger.response.business({
+            success: true,
+            message: `Security event: ${event.type}`,
+            data: {
+                eventType: event.type,
+                details: event.details
+            }
+        }).withSecurityDetails({
             ip: req.ip,
-            userId: req.user?.id
+            userId: req.user?.id,
+            severity: event.severity,
+            eventType: event.type
         });
-        logger[event.severity](event.type, securityLog);
-        MetricFactory.incrementMetric(`security.events.${event.type}`);
+        
+        // Log with appropriate level
+        logger[event.severity](securityResponse);
     }
 
     next();
 };
 
+// Export all middleware
 module.exports = {
+    correlationMiddleware,
     requestLogger,
     errorLogger,
     performanceLogger,
-    securityLogger
+    securityLogger,
+    createRequestLog
 };

@@ -41,7 +41,7 @@ Example: `20250228135213-add-timestamps.js`
 
 Models are defined using Sequelize and follow these conventions:
 - Use UUID for primary keys
-- Include timestamps (`created_at`, `updated_at`, `deleted_at`)
+- Include timestamps (`createdAt`, `updatedAt`, `deletedAt`)
 - Use soft deletes where appropriate
 - Follow consistent naming (snake_case for database, camelCase for JS)
 

@@ -17,6 +17,13 @@ const ProductsView = () => import('@/views/printify/ProductsView.vue')
 const OrdersView = () => import('@/views/printify/OrdersView.vue')
 const ProfileView = () => import('@/views/profile/ProfileView.vue')
 
+// Cart & Checkout Views
+const CartView = () => import('@/views/cart/CartView.vue')
+const CheckoutSuccessView = () => import('@/views/checkout/SuccessView.vue')
+const CheckoutCancelView = () => import('@/views/checkout/CancelView.vue')
+const OrderConfirmationView = () => import('@/views/order/ConfirmationView.vue')
+const OrderHistoryView = () => import('@/views/order/OrderHistoryView.vue')
+
 // Documentation Views
 const DocumentationListView = () => import('@/views/documentation/ListView.vue')
 const DocumentationDetailView = () => import('@/views/documentation/DetailView.vue')
@@ -54,6 +61,44 @@ const routes = [
         name: 'profile',
         component: ProfileView,
         meta: { title: 'Profile' }
+      },
+      // Cart & Checkout routes
+      {
+        path: 'cart',
+        name: 'cart',
+        component: CartView,
+        meta: { title: 'Shopping Cart' }
+      },
+      {
+        path: 'checkout/success',
+        name: 'checkout-success',
+        component: CheckoutSuccessView,
+        meta: { title: 'Payment Successful' }
+      },
+      {
+        path: 'checkout/cancel',
+        name: 'checkout-cancel',
+        component: CheckoutCancelView,
+        meta: { title: 'Payment Cancelled' }
+      },
+      {
+        path: 'order/confirmation',
+        name: 'order-confirmation',
+        component: OrderConfirmationView,
+        meta: { title: 'Order Confirmation' }
+      },
+      {
+        path: 'order/history',
+        name: 'order-history',
+        component: OrderHistoryView,
+        meta: { 
+          title: 'Order History',
+          requiresAuth: true
+        }
+      },
+      {
+        path: 'order/tracking',
+        redirect: { name: 'orders' }
       },
       // Documentation routes
       {
@@ -125,7 +170,7 @@ const routes = [
         meta: { title: 'Forgot Password' }
       },
       {
-        path: 'reset-password/:token',
+        path: 'reset-password',
         name: 'reset-password',
         component: ResetPasswordView,
         meta: { title: 'Reset Password' }

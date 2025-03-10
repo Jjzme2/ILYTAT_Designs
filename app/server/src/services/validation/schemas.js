@@ -17,6 +17,7 @@ const updatedAt = Joi.date();
 const userRegistration = Joi.object({
   email,
   password: password.required(),
+  username,
   firstName: name.required(),
   lastName: name.required()
 });
@@ -87,6 +88,16 @@ const userRolesUpdate = Joi.object({
   roleIds: Joi.array().items(id).min(1).required()
 });
 
+// Password reset schemas
+const forgotPassword = Joi.object({
+  email: email
+});
+
+const passwordReset = Joi.object({
+  token: Joi.string().required(),
+  newPassword: password.required()
+});
+
 module.exports = {
   userRegistration,
   userLogin,
@@ -97,5 +108,7 @@ module.exports = {
   permissionCreate,
   permissionUpdate,
   rolePermissionsUpdate,
-  userRolesUpdate
+  userRolesUpdate,
+  forgotPassword,
+  passwordReset
 };

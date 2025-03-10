@@ -1,44 +1,38 @@
 const express = require('express');
 const router = express.Router();
 const printifyController = require('../../controllers/printifyController');
+const paymentController = require('../../controllers/paymentController');
 const { authenticateToken, authorize } = require('../../middleware/auth');
 
 /**
  * Printify API Routes
  * @module routes/api/printify
  * 
- * All routes are protected by authentication middleware.
- * Some routes require additional authorization for admin access.
+ * Public routes are accessible without authentication
+ * Admin routes require authentication and authorization
  */
 
-// Shops
-router.get('/shops', 
+// Public Routes
+router.get('/products', printifyController.getPublicProducts);
+router.get('/products/:productId', printifyController.getPublicProduct);
+
+// Payment Routes
+router.post('/payment/create-checkout', paymentController.createCheckoutSession);
+router.get('/payment/success', paymentController.handlePaymentSuccess);
+router.get('/payment/cancel', paymentController.handlePaymentCancel);
+router.post('/payment/webhook', paymentController.handleStripeWebhook);
+
+// Admin Routes (Protected)
+router.get('/admin/shops', 
     authenticateToken,
-  printifyController.getShops
+    authorize(['admin']),
+    printifyController.getShops
 );
 
-// Products
-router.get('/shops/:shopId/products', 
+router.get('/admin/shops/:shopId/orders', 
     authenticateToken,
-  printifyController.getProducts
-);
-
-router.get('/shops/:shopId/products/:productId', 
-    authenticateToken,
-  printifyController.getProduct
-);
-
-// Orders
-router.get('/shops/:shopId/orders', 
-    authenticateToken,
-  authorize(['admin', 'manager']),
-  printifyController.getOrders
-);
-
-router.post('/shops/:shopId/orders', 
-    authenticateToken,
-  authorize(['admin', 'manager']),
-  printifyController.createOrder
+    authorize(['admin']),
+    printifyController.getOrders
 );
 
 module.exports = router;

@@ -41,17 +41,17 @@ module.exports = (sequelize) => {
             type: DataTypes.JSON,
             comment: 'Additional attributes or conditions for the permission'
         },
-        created_at: {
+        createdAt: {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: DataTypes.NOW
         },
-        updated_at: {
+        updatedAt: {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: DataTypes.NOW
         },
-        deleted_at: {
+        deletedAt: {
             type: DataTypes.DATE,
             allowNull: true
         }
@@ -60,18 +60,13 @@ module.exports = (sequelize) => {
         modelName: 'Permission',
         timestamps: true,
         paranoid: true,
-        underscored: true,
+        underscored: false,
         indexes: [
-            {
-                unique: true,
-                fields: ['name']
-            },
-            {
-                fields: ['created_at']
-            },
-            {
-                fields: ['updated_at']
-            }
+            // Removed redundant indices that are already defined in migrations
+            // These indices are already created in migration files:
+            // - 20250227000003-create-permissions.js (name)
+            // - 20250228135213-add-timestamps.js (createdAt, updatedAt)
+            // Note: resource and action indices are only defined in the migration
         ]
     });
 

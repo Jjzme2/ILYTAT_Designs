@@ -39,7 +39,11 @@ yarn-error.log*
 app/server/logs/data_tracking/
 
 # Development
-_dev/
+# Keep _dev structure but ignore personal contents
+_dev/personal/*
+!_dev/personal/.gitkeep
+!_dev/shared/
+!_dev/
 .dev/
 *.dev.js
 *.dev.config.js

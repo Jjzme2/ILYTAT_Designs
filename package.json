@@ -4,8 +4,10 @@
   "description": "ILYTAT Designs Application",
   "private": true,
   "scripts": {
+    "writePass:ps": "echo 'YourNewSecurePassword123'",
     "client:ps": "cd app/client && npm run dev && cd ../..",
     "server:ps": "cd app/server && npm run dev && cd ../..",
+    "syncDatabase:ps": "cd app/server && npm run syncDatabase && cd ../..",
     "build:ps": "cd app/client && npm run build && cd ../..",
     "start:ps": "start npm run server:ps && start npm run client:ps",
     "install:ps": "npm i && cd app/client && npm i && cd ../server && npm i && cd ../..",
@@ -17,7 +19,8 @@
     "deploy:ps": "npm run build:ps && git add . && git commit -m \"Deploy to production\" && git push heroku main",
     "logs:ps": "heroku logs --tail",
     "db:migrate:prod:ps": "heroku run npm run db:migrate:ps",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "generate-random-string": "node ./app/server/src/utils/generateRandomString.js"
   },
   "engines": {
     "node": ">=18.0.0",

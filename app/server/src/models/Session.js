@@ -44,13 +44,9 @@ module.exports = (sequelize) => {
         sequelize,
         modelName: 'Session',
         indexes: [
-            {
-                fields: ['userId']
-            },
-            {
-                unique: true,
-                fields: ['token']
-            }
+            // Removed redundant indices that are already defined in migrations
+            // These indices are already created in migration file:
+            // - 20250227000006-create-sessions.js (userId, token)
         ]
     });
 

@@ -5,11 +5,13 @@ const helmet = require('helmet');
 const path = require('path');
 const passport = require('../config/passport');
 const { errorHandler } = require('./utils/errorHandler');
-const logger = require('./utils/logger/baseLogger');
+// Use enhanced logger with integrated response system
+const logger = require('./utils/logger');
 const routes = require('./routes');
 const securityConfig = require('./config/security');
-const { MetricFactory } = require('./utils/logger/factories');
+// Use enhanced middleware that integrates with our response system
 const {
+    correlationMiddleware,
     requestLogger,
     errorLogger,
     performanceLogger,
@@ -20,27 +22,16 @@ const debugMiddleware = require('./middleware/debugMiddleware');
 // Initialize express app
 const app = express();
 
-// Start system metrics collection
-MetricFactory.startSystemMetrics();
+// Apply correlation ID middleware (must be first to capture all requests)
+app.use(correlationMiddleware);
 
-// Custom metrics for database connections
-let sequelizeInstance;
-try {
-    sequelizeInstance = require('./models').sequelize;
-} catch (error) {
-    logger.warn('Could not load Sequelize instance for metrics', { error });
-}
-
-if (sequelizeInstance) {
-    MetricFactory.startCustomMetric('database.connections', async () => {
-        return sequelizeInstance.connectionManager.size;
-    });
-}
-
-// Debug middleware (before CORS to catch all requests)
+// Debug middleware for non-production environments
 if (process.env.NODE_ENV !== 'production') {
     app.use(debugMiddleware);
 }
+
+// Apply response factory middleware to add response helper methods
+app.use(logger.response.middleware);
 
 // Logging middleware (before other middleware to catch all requests)
 app.use(requestLogger);
@@ -70,14 +61,14 @@ app.use('/api', routes);
 // Handle SPA routing - send all other requests to index.html
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api')) {
-        return res.status(404).json({ error: 'API endpoint not found' });
+        return res.sendNotFound('Endpoint', req.path, 'API endpoint not found');
     }
     res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
 });
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+    res.sendSuccess({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
 // Error logging middleware
@@ -90,23 +81,22 @@ app.use(errorHandler);
 const gracefulShutdown = async () => {
     logger.info('Received shutdown signal');
     
-    // Stop metric collection
-    MetricFactory.stopAllMetricCollection();
-    
-    // Log final metrics
-    const finalMetrics = MetricFactory.getAllMetrics();
-    logger.info('Final metrics before shutdown', { metrics: finalMetrics });
-    
+    // Log final application state
     try {
-        // Close database connection
-        if (sequelizeInstance) {
-            await sequelizeInstance.close();
-            logger.info('Database connections closed');
+        // Close database connection if available
+        const models = require('./models');
+        if (models && models.sequelize) {
+            await models.sequelize.close();
+            logger.info('Database connections closed successfully');
         }
         
         process.exit(0);
     } catch (error) {
-        logger.error('Error during shutdown:', error);
+        logger.error(logger.response.error({
+            error,
+            message: 'Error during application shutdown',
+            userMessage: 'Server shutdown encountered issues'
+        }));
         process.exit(1);
     }
 };

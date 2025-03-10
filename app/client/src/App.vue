@@ -24,7 +24,7 @@ export default defineComponent({
 
     onMounted(() => {
       // Initialize authentication state
-      authStore.init()
+      authStore.initialize()
       
       // Apply saved theme
       uiStore.applyTheme()

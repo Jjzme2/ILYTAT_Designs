@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const path = require('path');
 const { requestMiddleware, errorHandler } = require('./middleware/requestHandler');
 const routes = require('./routes');
 const logger = require('./utils/logger');
@@ -54,13 +55,24 @@ app.use(morgan('combined', { stream: { write: message => logger.info(message.tri
 // Apply request handling middleware
 app.use(requestMiddleware);
 
-// Routes
+// Serve static files from the client's dist folder
+app.use(express.static(path.join(__dirname, '../../client/dist')));
+
+// API routes
 app.use('/api', routes);
+
+// Handle SPA routing - send all non-API requests to index.html
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found' });
+  }
+  res.sendFile(path.join(__dirname, '../../client/dist/index.html'));
+});
 
 // Error handling
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const server = http.createServer(app);
 
 // Initialize database and start server

@@ -3,7 +3,7 @@ const router = express.Router();
 
 // Mount API routes
 const apiRoutes = require('./api');
-router.use('/api', apiRoutes);
+router.use('/', apiRoutes);
 
 // Mount system 
 const systemRoutes = require('./system');

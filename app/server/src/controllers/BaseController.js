@@ -1,16 +1,27 @@
 /**
  * Base Controller Factory
  * Provides common CRUD operations and can be extended for specific needs
+ * Enhanced with integrated logging and response system
  */
+const logger = require('../utils/logger');
+const { createNotFoundError } = require('../utils/errorHandler');
+
 class BaseController {
   constructor(model, options = {}) {
     this.model = model;
+    this.modelName = model.name || 'Resource';
     this.options = {
       // Default options
       softDelete: false,
       defaultScope: true,
       ...options
     };
+    
+    // Logger specific to this controller instance
+    this.logger = logger.child({ 
+      controller: this.constructor.name,
+      model: this.modelName
+    });
   }
 
   /**
@@ -18,9 +29,27 @@ class BaseController {
    */
   create = async (req, res, next) => {
     try {
+      const startTime = Date.now();
+      
+      // Create the resource
       const resource = await this.model.create(req.body);
-      res.status(201).json(resource);
+      
+      // Log the operation success with business response
+      const response = this.logger.response.business({
+        success: true,
+        message: `${this.modelName} created successfully`,
+        userMessage: `${this.modelName} was created successfully`,
+        data: { id: resource.id }
+      }).withPerformanceMetrics({
+        duration: Date.now() - startTime
+      });
+      
+      this.logger.info(response);
+      
+      // Send success response
+      return res.sendSuccess(resource, `${this.modelName} created successfully`, 201);
     } catch (error) {
+      // Let the error handler middleware handle it
       next(error);
     }
   };
@@ -30,9 +59,11 @@ class BaseController {
    */
   getAll = async (req, res, next) => {
     try {
+      const startTime = Date.now();
       const { page = 1, limit = 10, sort = 'createdAt', order = 'DESC' } = req.query;
       const offset = (page - 1) * limit;
 
+      // Find resources with pagination
       const { rows: resources, count } = await this.model.findAndCountAll({
         limit: parseInt(limit),
         offset: parseInt(offset),
@@ -40,14 +71,27 @@ class BaseController {
         ...this.options.defaultScope && { scope: 'defaultScope' }
       });
 
-      res.json({
-        resources,
-        pagination: {
-          total: count,
-          page: parseInt(page),
-          pages: Math.ceil(count / limit)
-        }
+      // Create pagination metadata
+      const pagination = {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        pages: Math.ceil(count / limit)
+      };
+
+      // Log the operation success
+      const response = this.logger.response.business({
+        success: true,
+        message: `Retrieved ${resources.length} of ${count} ${this.modelName} records`,
+        data: { count, page, limit }
+      }).withPerformanceMetrics({
+        duration: Date.now() - startTime
       });
+      
+      this.logger.info(response);
+      
+      // Send success response with pagination
+      return res.sendPaginatedSuccess(resources, pagination, `${this.modelName} list retrieved successfully`);
     } catch (error) {
       next(error);
     }
@@ -58,11 +102,27 @@ class BaseController {
    */
   getById = async (req, res, next) => {
     try {
-      const resource = await this.model.findByPk(req.params.id);
+      const { id } = req.params;
+      
+      // Find the resource by ID
+      const resource = await this.model.findByPk(id);
+      
+      // If resource not found, throw a not found error
       if (!resource) {
-        return res.status(404).json({ message: 'Resource not found' });
+        throw createNotFoundError(this.modelName, id);
       }
-      res.json(resource);
+      
+      // Log the successful retrieval
+      const response = this.logger.response.business({
+        success: true,
+        message: `${this.modelName} retrieved successfully`,
+        data: { id }
+      });
+      
+      this.logger.info(response);
+      
+      // Send success response
+      return res.sendSuccess(resource, `${this.modelName} retrieved successfully`);
     } catch (error) {
       next(error);
     }
@@ -73,17 +133,37 @@ class BaseController {
    */
   update = async (req, res, next) => {
     try {
+      const { id } = req.params;
+      const startTime = Date.now();
+      
+      // Update the resource
       const [updated] = await this.model.update(req.body, {
-        where: { id: req.params.id },
+        where: { id },
         returning: true
       });
 
+      // If no rows were affected, the resource doesn't exist
       if (!updated) {
-        return res.status(404).json({ message: 'Resource not found' });
+        throw createNotFoundError(this.modelName, id);
       }
 
-      const resource = await this.model.findByPk(req.params.id);
-      res.json(resource);
+      // Fetch the updated resource
+      const resource = await this.model.findByPk(id);
+      
+      // Log the successful update
+      const response = this.logger.response.business({
+        success: true,
+        message: `${this.modelName} updated successfully`,
+        userMessage: `${this.modelName} was updated successfully`,
+        data: { id }
+      }).withPerformanceMetrics({
+        duration: Date.now() - startTime
+      });
+      
+      this.logger.info(response);
+      
+      // Send success response
+      return res.sendSuccess(resource, `${this.modelName} updated successfully`);
     } catch (error) {
       next(error);
     }
@@ -94,20 +174,35 @@ class BaseController {
    */
   delete = async (req, res, next) => {
     try {
-      const id = req.params.id;
+      const { id } = req.params;
+      
+      // Find the resource first
       const resource = await this.model.findByPk(id);
 
+      // If resource not found, throw a not found error
       if (!resource) {
-        return res.status(404).json({ message: 'Resource not found' });
+        throw createNotFoundError(this.modelName, id);
       }
 
+      // Handle soft delete or hard delete based on options
       if (this.options.softDelete) {
         await resource.update({ isActive: false });
       } else {
         await resource.destroy();
       }
 
-      res.status(204).send();
+      // Log the successful deletion
+      const response = this.logger.response.business({
+        success: true,
+        message: `${this.modelName} ${this.options.softDelete ? 'deactivated' : 'deleted'} successfully`,
+        userMessage: `${this.modelName} was ${this.options.softDelete ? 'deactivated' : 'deleted'} successfully`,
+        data: { id }
+      });
+      
+      this.logger.info(response);
+      
+      // Send success response with no content
+      return res.sendSuccess(null, `${this.modelName} ${this.options.softDelete ? 'deactivated' : 'deleted'} successfully`, 204);
     } catch (error) {
       next(error);
     }

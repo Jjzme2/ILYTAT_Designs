@@ -9,7 +9,12 @@ let server;
 
 async function startServer() {
     try {
-        await database.connect();
+        // Check if it's a new day to determine if we should sync the database
+        const shouldSync = database.isNewDay();
+        logger.info(`Starting server with database sync: ${shouldSync ? 'enabled' : 'disabled'}`);
+        
+        // Connect to the database and sync if it's a new day
+        await database.connect(shouldSync);
         logger.info('Database connected successfully');
 
         server = app.listen(port, () => {
