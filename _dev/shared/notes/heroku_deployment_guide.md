@@ -13,16 +13,25 @@ This document outlines the configuration and steps needed for deploying the ILYT
 
 2. **Procfile**
    - Location: Root directory
-   - Content: `web: npm run heroku-start`
+   - Content: `web: cd app/server && npm start`
    - Purpose: Tells Heroku what command to execute when the application starts
 
-### Package.json Scripts
+### Package.json Configuration
 
-The following scripts have been added to `package.json` for Heroku deployment and maintenance:
+The following configurations have been set in `package.json` for Heroku deployment:
 
+#### Engine Specifications
 ```json
-"build": "cd app/client && npm run build && cd ../server && npm run build",
-"heroku-postbuild": "npm run install:all && npm run build",
+"engines": {
+  "node": "18.x",
+  "npm": "9.x"
+}
+```
+Note: Heroku requires specific version numbers rather than version ranges with `>=` syntax.
+
+#### Scripts
+```json
+"heroku-postbuild": "cd app/client && npm install && cd ../server && npm install && cd ../client && npm run build",
 "heroku-start": "cd app/server && npm start",
 "heroku-logs": "heroku logs --tail",
 "heroku-bash": "heroku run bash",
@@ -135,17 +144,20 @@ heroku certs:auto:enable
 
 ## Common Issues and Troubleshooting
 
-1. **Database Connection Issues**
-   - Check connection string: `heroku config:get DATABASE_URL`
-   - Ensure your Sequelize configuration is using the Heroku-provided DATABASE_URL
-
-2. **Build Failures**
+1. **Build Failures**
+   - **"vite: not found" Error**: This occurs when dependencies aren't properly installed. Make sure client dependencies are installed before building.
+   - **Node.js Version Range Error**: Heroku requires specific version numbers in the engines section (e.g., "18.x" instead of ">=18.0.0").
    - Check build logs: `heroku builds:info`
    - View detailed build logs: `heroku builds:output`
+
+2. **Database Connection Issues**
+   - Check connection string: `heroku config:get DATABASE_URL`
+   - Ensure your Sequelize configuration is using the Heroku-provided DATABASE_URL
 
 3. **Application Crashes**
    - Check application logs: `npm run heroku-logs`
    - Ensure proper error handling in your code
+   - Verify that the Procfile correctly points to your server start command
 
 ## Resources
 

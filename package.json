@@ -9,7 +9,7 @@
     "syncDatabase": "cd app/server && npm run syncDatabase",
     "build": "cd app/client && npm run build && cd ../server && npm run build",
     "start": "concurrently \"npm run server\" \"npm run client\"",
-    "heroku-postbuild": "npm run install:all && npm run build",
+    "heroku-postbuild": "cd app/client && npm install && cd ../server && npm install && cd ../client && npm run build",
     "heroku-start": "cd app/server && npm start",
     "heroku-logs": "heroku logs --tail",
     "heroku-bash": "heroku run bash",
@@ -28,8 +28,8 @@
     "generate-random-string": "node ./app/server/src/utils/generateRandomString.js"
   },
   "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=9.0.0"
+    "node": "18.x",
+    "npm": "9.x"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
