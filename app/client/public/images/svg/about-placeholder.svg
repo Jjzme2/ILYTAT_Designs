@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  <g fill="#6c757d">
+    <circle cx="400" cy="250" r="120"/>
+    <rect x="200" y="400" width="400" height="30" rx="5"/>
+    <rect x="250" y="450" width="300" height="30" rx="5"/>
+    <rect x="300" y="500" width="200" height="30" rx="5"/>
+  </g>
+  <text x="400" y="260" font-family="Arial, sans-serif" font-size="28" text-anchor="middle" fill="#ffffff">ILYTAT Designs</text>
+  <text x="400" y="290" font-family="Arial, sans-serif" font-size="18" text-anchor="middle" fill="#ffffff">Our Story</text>
+</svg>

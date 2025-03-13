@@ -47,7 +47,7 @@ const dataTrackingMiddleware = async (req, res, next) => {
         }
 
         // Track profile related activities
-        if (req.path.startsWith('/profile')) {
+        if (req.path.startsWith('/me')) {
             await DataTrackingService.logProfile(
                 req.method.toLowerCase(),
                 {

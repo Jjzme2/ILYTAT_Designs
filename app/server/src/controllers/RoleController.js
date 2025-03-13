@@ -1,7 +1,8 @@
 const BaseController = require('./BaseController');
-const { Role } = require('../models');
+const { Role, Permission } = require('../models');
 const { createNotFoundError } = require('../utils/errorHandler');
 const logger = require('../utils/logger');
+const { PERMISSIONS } = require('../middleware/permissions');
 
 class RoleController extends BaseController {
   constructor() {
@@ -99,6 +100,78 @@ class RoleController extends BaseController {
 
       return res.sendSuccess(updatedRole, 'Role permissions updated successfully');
     } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * Get all available permissions for the system
+   * Used in the role management UI to assign permissions to roles
+   */
+  getAvailablePermissions = async (req, res, next) => {
+    try {
+      // Log the request
+      this.logger.debug(
+        this.logger.response.business({
+          message: 'Retrieving available permissions',
+          data: { requestedBy: req.user.id }
+        }).withRequestDetails(req)
+      );
+      
+      // First try to get all permissions from the database
+      const dbPermissions = await Permission.findAll({
+        attributes: ['id', 'name', 'description', 'category'],
+        order: [['category', 'ASC'], ['name', 'ASC']]
+      });
+      
+      // Format permissions with structured metadata
+      const formattedPermissions = {
+        // Convert array to object with categories
+        byCategory: dbPermissions.reduce((acc, permission) => {
+          const category = permission.category || 'Other';
+          if (!acc[category]) {
+            acc[category] = [];
+          }
+          acc[category].push({
+            id: permission.id,
+            name: permission.name,
+            description: permission.description || permission.name
+          });
+          return acc;
+        }, {}),
+        // Full list of permissions
+        all: dbPermissions.map(p => ({
+          id: p.id,
+          name: p.name,
+          description: p.description || p.name,
+          category: p.category || 'Other'
+        })),
+        // Standard permissions from the PERMISSIONS constant
+        standard: Object.entries(PERMISSIONS).map(([key, value]) => ({
+          key,
+          name: value,
+          description: key.toLowerCase().replace('_', ' ')
+        }))
+      };
+
+      // Log successful permissions retrieval
+      this.logger.info(
+        this.logger.response.business({
+          success: true,
+          message: 'Available permissions retrieved successfully',
+          data: { 
+            categoryCount: Object.keys(formattedPermissions.byCategory).length,
+            permissionCount: formattedPermissions.all.length 
+          }
+        })
+      );
+
+      return res.sendSuccess(
+        formattedPermissions, 
+        'Available permissions retrieved successfully'
+      );
+    } catch (error) {
+      this.logger.error('Error retrieving available permissions:', error);
       next(error);
     }
   };

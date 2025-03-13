@@ -206,6 +206,97 @@ class AuditController extends BaseController {
       return this.serverError(res, error);
     }
   }
+
+  /**
+   * Export audit logs to CSV or JSON format
+   * 
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  static async exportAuditLogs(req, res) {
+    try {
+      const { format = 'json' } = req.query;
+      const {
+        startDate,
+        endDate,
+        entityType,
+        action
+      } = req.query;
+      
+      // Get all audit records matching criteria (no pagination)
+      const result = await AuditService.getAuditRecords({
+        // Skip pagination for exports
+        page: 1,
+        limit: 10000, // Reasonable limit for exports
+        action,
+        entityType,
+        startDate,
+        endDate,
+        // Always sort by creation date for exports
+        sortBy: 'createdAt',
+        sortOrder: 'ASC'
+      });
+      
+      const records = result.data;
+      
+      // Log export attempt
+      logger.info('Audit logs export requested', {
+        userId: req.user.id,
+        format,
+        recordCount: records.length,
+        filters: {
+          startDate,
+          endDate,
+          entityType,
+          action
+        }
+      });
+      
+      if (format === 'csv') {
+        // Set CSV headers
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="audit-logs-${new Date().toISOString().slice(0, 10)}.csv"`); 
+        
+        // Create CSV header row
+        let csv = 'id,timestamp,action,entityType,entityId,userId,status,severity,details\n';
+        
+        // Add rows
+        records.forEach(record => {
+          // Clean details for CSV format
+          const details = record.details ? JSON.stringify(record.details).replace(/"/g, '""') : '';
+          
+          csv += `"${record.id}","${record.createdAt}","${record.action}","${record.entityType}",`+
+                 `"${record.entityId}","${record.userId}","${record.status}","${record.severity}",`+
+                 `"${details}"\n`;
+        });
+        
+        return res.send(csv);
+      } else {
+        // Return JSON format
+        return this.success(res, records, {
+          message: 'Audit logs exported successfully',
+          meta: {
+            exportTime: new Date().toISOString(),
+            recordCount: records.length,
+            filters: {
+              startDate: startDate || 'all',
+              endDate: endDate || 'all',
+              entityType: entityType || 'all',
+              action: action || 'all'
+            }
+          }
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to export audit logs', {
+        error: error.message,
+        stack: error.stack,
+        query: req.query
+      });
+      
+      return this.serverError(res, error);
+    }
+  }
 }
 
 module.exports = AuditController;

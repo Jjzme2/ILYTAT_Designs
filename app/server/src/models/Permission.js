@@ -1,11 +1,14 @@
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 
 module.exports = (sequelize) => {
     class Permission extends Model {
         static associate(models) {
             this.belongsToMany(models.Role, {
                 through: 'RolePermissions',
-                foreignKey: 'permissionId'
+                foreignKey: 'permission_id'
             });
         }
     }

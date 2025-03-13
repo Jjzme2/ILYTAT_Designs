@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 const { sequelize } = require('../database');
+const { enhanceModel } = require('../utils/modelEnhancer');
 
 const models = {};
 
@@ -18,6 +19,10 @@ fs.readdirSync(__dirname)
     try {
       const model = require(path.join(__dirname, file))(sequelize);
       models[model.name] = model;
+      
+      // Apply model enhancements for consistent naming conventions
+      enhanceModel(model);
+      
       logger.info(`Loaded model: ${model.name}`);
     } catch (error) {
       logger.error(`Error loading model ${file}:`, error);

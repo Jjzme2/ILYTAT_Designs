@@ -1,4 +1,5 @@
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
 
 /**
  * OrderItem model for storing individual line items in an order
@@ -10,34 +11,34 @@ module.exports = (sequelize) => {
             // Define associations - only if Order exists
             if (models.Order) {
                 this.belongsTo(models.Order, { 
-                    foreignKey: 'orderId',
+                    foreignKey: 'order_id',
                     as: 'order'
                 });
             }
         }
     }
 
-    OrderItem.init({
+    const attributes = standardizeAttributes({
         id: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true
         },
-        orderId: {
+        order_id: {
             type: DataTypes.UUID,
             allowNull: false,
             references: {
-                model: 'Orders',
+                model: 'orders',
                 key: 'id'
             }
         },
         // Product information
-        productId: {
+        product_id: {
             type: DataTypes.STRING,
             allowNull: false,
             comment: 'External ID of the product (e.g., Printify product ID)'
         },
-        variantId: {
+        variant_id: {
             type: DataTypes.STRING,
             allowNull: false,
             comment: 'External ID of the product variant'
@@ -60,11 +61,11 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: true
         },
-        variantTitle: {
+        variant_title: {
             type: DataTypes.STRING,
             allowNull: true
         },
-        imageUrl: {
+        image_url: {
             type: DataTypes.STRING,
             allowNull: true
         },
@@ -82,22 +83,26 @@ module.exports = (sequelize) => {
                 );
             }
         }
-    }, {
+    });
+
+    const options = enhanceModelOptions({
         sequelize,
         modelName: 'OrderItem',
-        tableName: 'OrderItems',
+        tableName: 'order_items',
         indexes: [
             {
-                fields: ['orderId']
+                fields: ['order_id']
             },
             {
-                fields: ['productId']
+                fields: ['product_id']
             },
             {
-                fields: ['variantId']
+                fields: ['variant_id']
             }
         ]
     });
+
+    OrderItem.init(attributes, options);
 
     return OrderItem;
 };

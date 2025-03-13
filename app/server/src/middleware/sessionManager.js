@@ -1,11 +1,22 @@
 const { Session } = require('../models')
+const { Op } = require('sequelize')
 const logger = require('../utils/logger')
+const { nameMapper } = require('../utils/nameMapper')
+const { redactSensitiveInfo, sanitizeObjectForLogs } = require('../utils/securityUtils')
 
 /**
  * Session Manager Middleware
  * Handles session creation, validation, and cleanup
  */
 class SessionManager {
+  /**
+   * Safely redact sensitive information for logging
+   * @private
+   */
+  static redactSensitiveInfo(value) {
+    return redactSensitiveInfo(value);
+  }
+
   /**
    * Create a new session for a user
    * @param {Object} user - User object
@@ -19,15 +30,22 @@ class SessionManager {
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
       const session = await Session.create({
-        userId: user.id,
+        user_id: user.id,
         token: token,
-        ipAddress: req.ip,
-        userAgent: req.get('user-agent'),
-        expiresAt,
-        isValid: true
+        ip_address: req.ip,
+        user_agent: req.get('user-agent'),
+        expires_at: expiresAt,
+        is_valid: true
       })
 
-      logger.info(`New session created for user: ${user.email}`)
+      // Log session creation with session ID for easier troubleshooting
+      logger.info(`New session created for user: ${user.email}`, {
+        sessionId: session.id,
+        userId: user.id,
+        // Redact token from logs
+        token: this.redactSensitiveInfo(token)
+      })
+      
       return session
     } catch (error) {
       logger.error('Session creation error:', error)
@@ -42,20 +60,30 @@ class SessionManager {
    */
   static async validateSession(token) {
     try {
+      // Debug log to help track token validation with redacted token
+      logger.debug('Validating session token', {
+        token: this.redactSensitiveInfo(token)
+      })
+      
       const session = await Session.findOne({
-        where: { token }
+        where: { 
+          token,
+          is_valid: true,
+          expires_at: { [Op.gt]: new Date() }
+        }
       })
 
       if (!session) {
+        logger.debug('Session validation failed: Session not found or invalid')
         return false
       }
 
-      // Check if session is expired or invalidated
-      if (!session.isValid || new Date() > session.expiresAt) {
-        await session.update({ isValid: false })
-        return false
-      }
-
+      // Additional logging on successful validation
+      logger.debug('Session validated successfully', { 
+        sessionId: session.id,
+        userId: session.user_id
+      })
+      
       return true
     } catch (error) {
       logger.error('Session validation error:', error)
@@ -75,8 +103,15 @@ class SessionManager {
       })
 
       if (session) {
-        await session.update({ isValid: false })
-        logger.info(`Session invalidated for token: ${token.substring(0, 10)}...`)
+        await session.update({ is_valid: false })
+        logger.info(`Session invalidated successfully`, {
+          sessionId: session.id,
+          token: this.redactSensitiveInfo(token)
+        })
+      } else {
+        logger.warn(`Attempted to invalidate non-existent session`, {
+          token: this.redactSensitiveInfo(token)
+        })
       }
     } catch (error) {
       logger.error('Session invalidation error:', error)
@@ -91,11 +126,15 @@ class SessionManager {
    */
   static async invalidateAllUserSessions(userId) {
     try {
-      await Session.update(
-        { isValid: false },
-        { where: { userId } }
+      const result = await Session.update(
+        { is_valid: false },
+        { where: { user_id: userId } }
       )
-      logger.info(`All sessions invalidated for user: ${userId}`)
+      
+      logger.info(`All sessions invalidated for user`, {
+        userId: userId,
+        sessionsUpdated: result[0]
+      })
     } catch (error) {
       logger.error('User sessions invalidation error:', error)
       throw error
@@ -108,12 +147,18 @@ class SessionManager {
    */
   static async cleanupExpiredSessions() {
     try {
-      const result = await Session.destroy({
-        where: {
-          expiresAt: { [Op.lt]: new Date() }
+      // Soft delete expired sessions instead of hard delete
+      const result = await Session.update(
+        { is_valid: false },
+        {
+          where: {
+            expires_at: { [Op.lt]: new Date() },
+            is_valid: true
+          }
         }
-      })
-      logger.info(`Cleaned up ${result} expired sessions`)
+      )
+      
+      logger.info(`Marked ${result[0]} expired sessions as invalid`)
     } catch (error) {
       logger.error('Session cleanup error:', error)
     }

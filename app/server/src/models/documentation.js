@@ -6,7 +6,7 @@ module.exports = (sequelize, DataTypes) => {
     static associate(models) {
       // Define association with Role model
       Documentation.belongsTo(models.Role, {
-        foreignKey: 'roleId',
+        foreignKey: 'role_id',
         as: 'role'
       });
     }
@@ -25,7 +25,7 @@ module.exports = (sequelize, DataTypes) => {
         notEmpty: true
       }
     },
-    filePath: {
+    file_path: {
       type: DataTypes.STRING,
       allowNull: false,
       validate: {
@@ -36,18 +36,21 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: false
     },
-    roleId: {
+    role_id: {
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: 'Roles',
+        model: 'roles',
         key: 'id'
       }
     }
   }, {
     sequelize,
     modelName: 'Documentation',
-    tableName: 'documentation'
+    tableName: 'documentations',
+    underscored: true,
+    timestamps: true,
+    paranoid: true
   });
 
   return Documentation;

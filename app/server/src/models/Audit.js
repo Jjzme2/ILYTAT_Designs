@@ -1,4 +1,7 @@
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 const logger = require('../utils/logger');
 
 /**
@@ -10,7 +13,7 @@ module.exports = (sequelize) => {
     static associate(models) {
       // Define associations
       this.belongsTo(models.User, {
-        foreignKey: 'userId',
+        foreignKey: 'user_id',
         as: 'user'
       });
     }

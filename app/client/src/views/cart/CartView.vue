@@ -6,7 +6,7 @@
       <div class="empty-cart-content">
         <i class="fa-solid fa-cart-shopping empty-cart-icon"></i>
         <p>Your cart is empty</p>
-        <router-link to="/printify/products" class="continue-shopping-btn">
+        <router-link to="/shop" class="continue-shopping-btn">
           Continue Shopping
         </router-link>
       </div>
@@ -81,7 +81,7 @@
         <button 
           class="checkout-btn" 
           @click="checkout"
-          :disabled="isProcessing"
+          :disabled="isProcessing || cartStore.cart.length === 0"
         >
           <span v-if="isProcessing">
             <i class="fa-solid fa-spinner fa-spin"></i> Processing...
@@ -91,7 +91,7 @@
           </span>
         </button>
         
-        <router-link to="/printify/products" class="continue-shopping-link">
+        <router-link to="/shop" class="continue-shopping-link">
           Continue Shopping
         </router-link>
       </div>
@@ -100,18 +100,17 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { usePrintifyStore } from '@/stores/printify';
 import { useToast } from '@/composables/useToast';
+import { useAuthStore } from '@/stores/auth';
 
 const cartStore = usePrintifyStore();
+const authStore = useAuthStore();
 const router = useRouter();
 const { showToast } = useToast();
 const isProcessing = ref(false);
-
-// Load cart data from localStorage when component mounts
-cartStore.loadCartFromStorage();
 
 // Update item quantity
 const updateQuantity = (index, newQuantity) => {
@@ -136,16 +135,30 @@ const checkout = async () => {
     return;
   }
   
+  // If user is not authenticated, redirect to login first
+  if (!authStore.isAuthenticated) {
+    // Save current path to redirect back after login
+    localStorage.setItem('checkout-redirect', 'true');
+    router.push({ name: 'login', query: { redirect: 'checkout' } });
+    return;
+  }
+  
   isProcessing.value = true;
   
   try {
-    await cartStore.createCheckoutSession();
-    // No need to redirect here as the store already handles the redirect to Stripe
+    // Here you would initiate your checkout process
+    // For example, redirect to a checkout page or initiate Stripe checkout
+    router.push({ name: 'checkout' });
   } catch (error) {
     showToast(error.message || 'There was a problem with checkout', 'error');
     isProcessing.value = false;
   }
 };
+
+// Load cart data when component mounts
+onMounted(() => {
+  cartStore.loadCart();
+});
 </script>
 
 <style>

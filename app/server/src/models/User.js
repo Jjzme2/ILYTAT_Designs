@@ -1,4 +1,7 @@
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 const bcrypt = require('bcryptjs');
 const logger = require('../utils/logger');
 
@@ -6,10 +9,10 @@ module.exports = (sequelize) => {
     class User extends Model {
         static associate(models) {
             // Define associations
-            this.hasMany(models.Session, { foreignKey: 'userId' });
+            this.hasMany(models.Session, { foreignKey: 'user_id' });
             this.belongsToMany(models.Role, { 
-                through: 'UserRoles',
-                foreignKey: 'userId'
+                through: 'user_roles',
+                foreignKey: 'user_id'
             });
         }
 
@@ -18,7 +21,7 @@ module.exports = (sequelize) => {
             try {
                 // Add detailed debug logging
                 logger.debug('Password validation attempt', {
-                    userId: this.id,
+                    user_id: this.id,
                     email: this.email,
                     passwordLength: password ? password.length : 0,
                     hashedPasswordLength: this.password ? this.password.length : 0,
@@ -36,7 +39,7 @@ module.exports = (sequelize) => {
                 const result = await bcrypt.compare(password, this.password);
                 
                 logger.debug('Password validation result', {
-                    userId: this.id,
+                    user_id: this.id,
                     email: this.email,
                     result: result
                 });
@@ -46,7 +49,7 @@ module.exports = (sequelize) => {
                 logger.error('Error validating password:', {
                     error: error.message,
                     stack: error.stack,
-                    userId: this.id,
+                    user_id: this.id,
                     email: this.email
                 });
                 return false;
@@ -57,9 +60,9 @@ module.exports = (sequelize) => {
         toJSON() {
             const values = { ...this.get() };
             delete values.password;
-            delete values.resetPasswordToken;
-            delete values.resetPasswordExpires;
-            delete values.verificationToken;
+            delete values.reset_password_token;
+            delete values.reset_password_expires;
+            delete values.verification_token;
             return values;
         }
     }
@@ -90,59 +93,60 @@ module.exports = (sequelize) => {
             type: DataTypes.STRING,
             allowNull: false
         },
-        firstName: {
+        first_name: {
             type: DataTypes.STRING,
             allowNull: true
         },
-        lastName: {
+        last_name: {
             type: DataTypes.STRING,
             allowNull: true
         },
-        isActive: {
+        is_active: {
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
-        isVerified: {
+        is_verified: {
             type: DataTypes.BOOLEAN,
             defaultValue: false
         },
-        verificationToken: {
+        verification_token: {
             type: DataTypes.STRING,
             allowNull: true
         },
-        verificationExpires: {
+        verification_expires: {
             type: DataTypes.DATE,
             allowNull: true
         },
-        lastLogin: {
+        last_login: {
             type: DataTypes.DATE
         },
-        resetPasswordToken: {
+        reset_password_token: {
             type: DataTypes.STRING,
             allowNull: true
         },
-        resetPasswordExpires: {
+        reset_password_expires: {
             type: DataTypes.DATE,
             allowNull: true
         },
-        loginAttempts: {
+        login_attempts: {
             type: DataTypes.INTEGER,
             defaultValue: 0
         },
-        lockUntil: {
+        lock_until: {
             type: DataTypes.DATE,
             allowNull: true
         }
     }, {
         sequelize,
         modelName: 'User',
-        tableName: 'Users', 
+        tableName: 'users', 
+        underscored: true,
         hooks: {
             beforeSave: async (user) => {
                 // Add debug logging for password changes
                 if (user.changed('password')) {
                     logger.debug('User password changed - preparing to hash', {
-                        userId: user.id,
+                        user_id: user.id,
                         email: user.email,
                         isNewRecord: user.isNewRecord,
                         passwordLength: user.password ? user.password.length : 0,
@@ -153,7 +157,7 @@ module.exports = (sequelize) => {
                     // Check if password is already hashed (starts with $2a$ or $2b$)
                     if (user.password && (user.password.startsWith('$2a$') || user.password.startsWith('$2b$'))) {
                         logger.debug('Password appears to be already hashed, skipping hash operation', {
-                            userId: user.id,
+                            user_id: user.id,
                             email: user.email
                         });
                         return; // Skip hashing if already hashed
@@ -164,7 +168,7 @@ module.exports = (sequelize) => {
                     user.password = await bcrypt.hash(user.password, salt);
                     
                     logger.debug('Password hashed in beforeSave hook', {
-                        userId: user.id,
+                        user_id: user.id,
                         email: user.email,
                         originalLength: originalPassword ? originalPassword.length : 0,
                         hashedLength: user.password.length,
@@ -172,7 +176,7 @@ module.exports = (sequelize) => {
                     });
                 } else {
                     logger.debug('User save operation - password not changed', {
-                        userId: user.id,
+                        user_id: user.id,
                         email: user.email,
                         isNewRecord: user.isNewRecord,
                         changedFields: user.changed()
@@ -191,7 +195,7 @@ module.exports = (sequelize) => {
             // - 20250227000001-create-users.js (email, username)
             // - 20250305000001-add-verification-fields-to-users.js (verificationToken)
             {
-                fields: ['resetPasswordToken']
+                fields: ['reset_password_token']
             }
         ]
     });

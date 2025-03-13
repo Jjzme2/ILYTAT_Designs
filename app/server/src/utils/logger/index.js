@@ -2,6 +2,8 @@
  * Centralized Logging System
  * Provides a standardized logging pattern throughout the application
  * Integrates logging with the response system for comprehensive error handling
+ * 
+ * Enhanced with security features to automatically redact sensitive information
  */
 const winston = require('winston');
 const DailyRotateFile = require('winston-daily-rotate-file');
@@ -38,6 +40,18 @@ const logColors = {
     debug: 'blue',
     trace: 'gray'
 };
+
+// Import the security utilities for secure logging
+let securityUtils;
+try {
+    securityUtils = require('../securityUtils');
+} catch (error) {
+    // Fallback if security utils are not available (to prevent circular dependencies)
+    securityUtils = {
+        sanitizeObjectForLogs: (obj) => obj,
+        redactSensitiveInfo: (val) => val
+    };
+}
 
 // Custom format for enhanced error handling
 const errorFormat = winston.format((info) => {

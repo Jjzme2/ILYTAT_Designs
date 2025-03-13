@@ -1,6 +1,12 @@
+// routes/api/index.js
+/**
+ * API Routes Configuration
+ * All routes are prefixed with /api
+ */
 const express = require('express');
 const router = express.Router();
 
+// Import all route handlers
 const userRoutes = require('./users');
 const roleRoutes = require('./roles');
 const docRoutes = require('./documentations');
@@ -9,26 +15,66 @@ const authRoutes = require('./auth');
 const paymentRoutes = require('./payments');
 const debugRoutes = require('./debug');
 const contactRoutes = require('./contact');
+const auditRoutes = require('./audit');
+const systemRoutes = require('./system');
+const featuredProductRoutes = require('./featuredProducts');
 
 /**
- * API Routes Configuration
- * All routes are prefixed with /api
+ * Route Registration
+ * Each route file exports a function that accepts a router
+ * This allows each route file to be independent and reusable
  */
 
 // Auth Routes
-router.use('/auth', authRoutes);
+const authRouter = express.Router();
+authRoutes(authRouter);
+router.use('/auth', authRouter);
 
 // Core API Routes
-router.use('/users', userRoutes);
-router.use('/roles', roleRoutes);
-router.use('/documents', docRoutes);
-router.use('/printifyApi', printifyRoutes);
-router.use('/payment', paymentRoutes);
-router.use('/contact', contactRoutes);
+const usersRouter = express.Router();
+userRoutes(usersRouter);
+router.use('/users', usersRouter);
+
+const rolesRouter = express.Router();
+roleRoutes(rolesRouter);
+router.use('/roles', rolesRouter);
+
+const docsRouter = express.Router();
+docRoutes(docsRouter);
+router.use('/documents', docsRouter);
+
+const printifyRouter = express.Router();
+printifyRoutes(printifyRouter);
+router.use('/printify', printifyRouter);
+
+const paymentRouter = express.Router();
+paymentRoutes(paymentRouter);
+router.use('/payment', paymentRouter);
+
+const contactRouter = express.Router();
+contactRoutes(contactRouter);
+router.use('/contact', contactRouter);
+
+// Audit Routes
+const auditRouter = express.Router();
+auditRoutes(auditRouter);
+router.use('/audit', auditRouter);
+
+// System Routes
+const systemRouter = express.Router();
+systemRoutes(systemRouter);
+router.use('/system', systemRouter);
+
+// Featured Products Routes
+const featuredProductsRouter = express.Router();
+featuredProductRoutes(featuredProductsRouter);
+router.use('/featured-products', featuredProductsRouter);
 
 // Debug Routes - Only available in development mode
 if (process.env.NODE_ENV !== 'production') {
-  router.use('/debug', debugRoutes);
+  const debugRouter = express.Router();
+  debugRoutes(debugRouter);
+  router.use('/debug', debugRouter);
 }
 
 module.exports = router;

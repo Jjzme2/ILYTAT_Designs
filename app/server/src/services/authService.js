@@ -3,21 +3,28 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { auth: config } = require('../config');
 const { User, Session } = require('../models');
-const SessionManager = require('../middleware/sessionManager');
-const EmailService = require('./emailService');
+const { APIError } = require('../utils/errorHandler');
 const logger = require('../utils/logger');
-const cache = require('../utils/cacheService');
-const APIError = require('../utils/apiError');
+const EmailService = require('./emailService');
+const { redactSensitiveInfo, sanitizeObjectForLogs } = require('../utils/securityUtils');
 
 /**
  * Authentication Service - Handles user authentication, registration, and session management
  */
 class AuthService {
-  // Constants
+  // Constants for token expiry, lock duration, etc.
   static TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
   static LOCK_DURATION = 30 * 60 * 1000; // 30 minutes
   static RESET_EXPIRY = 60 * 60 * 1000; // 1 hour
   static MAX_LOGIN_ATTEMPTS = 5;
+
+  /**
+   * Safely redact sensitive information for logging
+   * @private
+   */
+  static redactSensitiveInfo(value) {
+    return redactSensitiveInfo(value);
+  }
 
   /**
    * Generate JWT token with user information
@@ -34,11 +41,18 @@ class AuthService {
       isVerified: user.isVerified
     };
     
-    return jwt.sign(
+    const token = jwt.sign(
       payload,
       config.jwt.secret,
       { expiresIn: config.jwt.expiresIn }
     );
+    
+    logger.debug('Generated JWT token', {
+      userId: user.id,
+      token: this.redactSensitiveInfo(token)
+    });
+    
+    return token;
   }
 
   /**
@@ -47,11 +61,18 @@ class AuthService {
    * @returns {string} Refresh token
    */
   static generateRefreshToken(user) {
-    return jwt.sign(
+    const refreshToken = jwt.sign(
       { id: user.id },
       config.jwt.refreshSecret,
       { expiresIn: config.jwt.refreshExpiresIn }
     );
+    
+    logger.debug('Generated refresh token', {
+      userId: user.id,
+      token: this.redactSensitiveInfo(refreshToken)
+    });
+    
+    return refreshToken;
   }
 
   /**
@@ -199,12 +220,33 @@ class AuthService {
    * @private
    */
   static async generateUserTokens(user, req) {
-    const accessToken = this.generateToken(user);
-    const refreshToken = this.generateRefreshToken(user);
-    
-    await SessionManager.createSession(user, req, refreshToken);
-    
-    return { accessToken, refreshToken };
+    try {
+      const accessToken = this.generateToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+      
+      // Create a session record
+      await Session.create({
+        user_id: user.id,
+        token: refreshToken,
+        user_agent: req?.headers?.['user-agent'] || 'Unknown',
+        ip_address: req?.ip || 'Unknown',
+        expires_at: new Date(Date.now() + this.TOKEN_EXPIRY),
+        is_valid: true
+      });
+      
+      // Add debug logging to verify token generation
+      logger.debug('Token generation', { 
+        userId: user.id,
+        tokenGenerated: true,
+        accessTokenExists: !!accessToken,
+        refreshTokenExists: !!refreshToken
+      });
+      
+      return { accessToken, refreshToken };
+    } catch (error) {
+      logger.error('Failed to generate tokens:', error);
+      throw this.handleError(error, 'Failed to generate authentication tokens');
+    }
   }
 
   /**
@@ -214,7 +256,7 @@ class AuthService {
   static sanitizeUserResponse(user) {
     const userResponse = user.toJSON();
     delete userResponse.password;
-    delete userResponse.loginAttempts;
+    delete userResponse.login_attempts;
     return userResponse;
   }
 
@@ -228,8 +270,8 @@ class AuthService {
     try {
       const user = await User.findOne({
         where: {
-          verificationToken: token,
-          verificationExpires: { [User.sequelize.Op.gt]: new Date() }
+          verification_token: token,
+          verification_expires: { [User.sequelize.Op.gt]: new Date() }
         }
       });
 
@@ -241,9 +283,9 @@ class AuthService {
       }
 
       await user.update({
-        isVerified: true,
-        verificationToken: null,
-        verificationExpires: null
+        is_verified: true,
+        verification_token: null,
+        verification_expires: null
       });
 
       return {
@@ -273,7 +315,7 @@ class AuthService {
         });
       }
       
-      if (user.isVerified) {
+      if (user.is_verified) {
         throw new APIError({
           message: 'Email is already verified',
           statusCode: 400
@@ -284,12 +326,12 @@ class AuthService {
       const verificationExpires = new Date(Date.now() + this.TOKEN_EXPIRY);
       
       await user.update({
-        verificationToken,
-        verificationExpires
+        verification_token: verificationToken,
+        verification_expires: verificationExpires
       });
       
       await EmailService.sendVerificationEmail(user, verificationToken);
-      
+
       return {
         message: 'Verification email sent successfully',
         email: user.email
@@ -309,46 +351,116 @@ class AuthService {
    */
   static async authenticateUser(credentials, req) {
     try {
-      const ipAddress = req.ip;
-      await this.checkRateLimit(ipAddress);
+      // Log authentication attempt with redacted credentials
+      logger.debug('Authentication attempt', {
+        email: this.redactSensitiveInfo(credentials.email),
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
       
-      const user = await User.findOne({ where: { email: credentials.email } });
-      
-      // Increment login attempts before password check
-      await this.incrementLoginAttempts(ipAddress);
-      
+      // Validate required fields
+      if (!credentials.email || !credentials.password) {
+        throw new APIError({
+          message: 'Email and password are required',
+          statusCode: 400
+        });
+      }
+
+      // Check rate limiting
+      await this.checkRateLimit(req.ip);
+
+      // Find user by email
+      const user = await User.findOne({
+        where: { email: credentials.email.toLowerCase() }
+      });
+
       if (!user) {
         throw new APIError({
-          message: 'Invalid credentials, No user found.',
+          message: 'Invalid credentials, user not found',
           statusCode: 401
         });
       }
 
+      // Check if account is locked
       await this.checkAccountLock(user);
+
+      // Validate user password
       await this.validateUserCredentials(user, credentials.password);
+
+      // Check if email is verified
       await this.checkEmailVerification(user);
+      
+      // Manage concurrent sessions
       await this.manageUserSessions(user);
-      
-      const { accessToken, refreshToken } = await this.generateUserTokens(user, req);
-      
+
+      // Generate user tokens
+      const userTokens = await this.generateUserTokens(user, req);
+
+      // Log successful authentication without revealing tokens
+      logger.info('User authenticated successfully', {
+        userId: user.id,
+        email: this.redactSensitiveInfo(user.email),
+        ipAddress: req.ip
+      });
+
+      // Return user data and tokens
       return {
-        user: {
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          role: user.role,
-          isVerified: user.isVerified
-        },
+        user: this.sanitizeUserResponse(user),
+        ...userTokens
+      };
+    } catch (error) {
+      // Increment failed login attempts for rate limiting
+      if (error.statusCode === 401) {
+        await this.incrementLoginAttempts(req.ip);
+      }
+      
+      logger.error('Authentication failed', {
+        email: credentials?.email ? this.redactSensitiveInfo(credentials.email) : 'not provided',
+        ip: req.ip,
+        errorMessage: error.message
+      });
+      
+      throw this.handleError(error, 'Authentication failed');
+    }
+  }
+
+  /**
+   * Generate access and refresh tokens for a user
+   * @private
+   */
+  static async generateUserTokens(user, req) {
+    try {
+      // Generate tokens
+      const accessToken = this.generateToken(user);
+      const refreshToken = this.generateRefreshToken(user);
+
+      // Create session record with refresh token
+      await Session.create({
+        user_id: user.id,
+        token: refreshToken,
+        ip_address: req?.ip || 'Unknown',
+        user_agent: req?.headers?.['user-agent'] || 'Unknown',
+        expires_at: new Date(Date.now() + this.TOKEN_EXPIRY),
+        is_valid: true
+      });
+
+      // Log token generation without revealing token values
+      logger.debug('Tokens generated for user', {
+        userId: user.id,
+        accessToken: this.redactSensitiveInfo(accessToken),
+        refreshToken: this.redactSensitiveInfo(refreshToken)
+      });
+
+      return {
         accessToken,
         refreshToken
       };
     } catch (error) {
-      logger.error('Login failed:', {
-        error,
-        email: credentials?.email
+      logger.error('Token generation failed', {
+        userId: user.id,
+        error: error.message
       });
-      throw this.handleError(error, 'Login failed');
+      throw error;
     }
   }
 
@@ -372,7 +484,7 @@ class AuthService {
    * @private
    */
   static async checkAccountLock(user) {
-    if (user.lockUntil && user.lockUntil > new Date()) {
+    if (user.lock_until && user.lock_until > new Date()) {
       throw new APIError({
         message: 'Account is temporarily locked. Try again later.',
         statusCode: 403
@@ -385,11 +497,11 @@ class AuthService {
    * @private
    */
   static async validateUserCredentials(user, password) {
-    // Add detailed debug logging before password validation
+    // Add detailed debug logging before password validation with redacted password
     logger.debug('Attempting to validate user credentials', {
       userId: user.id,
-      email: user.email,
-      loginAttempts: user.loginAttempts,
+      email: this.redactSensitiveInfo(user.email),
+      loginAttempts: user.login_attempts,
       passwordProvided: !!password,
       passwordLength: password ? password.length : 0
     });
@@ -399,7 +511,7 @@ class AuthService {
     // Log the result of password validation
     logger.debug('Password validation completed', {
       userId: user.id,
-      email: user.email,
+      email: this.redactSensitiveInfo(user.email),
       isValidPassword: isValidPassword
     });
     
@@ -414,15 +526,9 @@ class AuthService {
     
     // Reset login attempts and lock on successful login
     await user.update({
-      loginAttempts: 0,
-      lockUntil: null,
-      lastLogin: new Date()
-    });
-    
-    // Log successful validation
-    logger.debug('User credentials validated successfully', {
-      userId: user.id,
-      email: user.email
+      login_attempts: 0,
+      lock_until: null,
+      last_login: new Date()
     });
   }
 
@@ -431,13 +537,27 @@ class AuthService {
    * @private
    */
   static async handleFailedLoginAttempt(user) {
-    const updatedAttempts = user.loginAttempts + 1;
+    const updatedAttempts = user.login_attempts + 1;
+    
+    // Log failed login attempt with redacted user info
+    logger.debug('Failed login attempt', {
+      userId: user.id,
+      email: this.redactSensitiveInfo(user.email),
+      attemptNumber: updatedAttempts,
+      maxAttempts: this.MAX_LOGIN_ATTEMPTS
+    });
     
     // Lock account after MAX_LOGIN_ATTEMPTS failed attempts
     if (updatedAttempts >= this.MAX_LOGIN_ATTEMPTS) {
       await user.update({
-        loginAttempts: updatedAttempts,
-        lockUntil: new Date(Date.now() + this.LOCK_DURATION)
+        login_attempts: updatedAttempts,
+        lock_until: new Date(Date.now() + this.LOCK_DURATION)
+      });
+      
+      logger.warn('Account locked after multiple failed attempts', {
+        userId: user.id,
+        email: this.redactSensitiveInfo(user.email),
+        lockDuration: `${this.LOCK_DURATION / 60000} minutes`
       });
       
       throw new APIError({
@@ -448,7 +568,7 @@ class AuthService {
     
     // Just increment attempts
     await user.update({
-      loginAttempts: updatedAttempts
+      login_attempts: updatedAttempts
     });
   }
 
@@ -457,7 +577,7 @@ class AuthService {
    * @private
    */
   static async checkEmailVerification(user) {
-    if (!user.isVerified) {
+    if (!user.is_verified) {
       throw new APIError({
         message: 'Email not verified. Please verify your email before logging in.',
         statusCode: 403,
@@ -477,15 +597,15 @@ class AuthService {
   static async manageUserSessions(user) {
     const activeSessions = await Session.findAll({
       where: { 
-        userId: user.id,
-        isValid: true
+        user_id: user.id,
+        is_valid: true
       }
     });
     
     if (activeSessions.length >= config.session.maxConcurrentSessions) {
       // Sort sessions by createdAt and remove oldest
-      activeSessions.sort((a, b) => a.createdAt - b.createdAt);
-      await activeSessions[0].update({ isValid: false });
+      activeSessions.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+      await activeSessions[0].update({ is_valid: false });
     }
   }
 
@@ -536,28 +656,25 @@ class AuthService {
       }
 
       // If the email is already verified, just return success (don't leak info)
-      if (user.isVerified) {
+      if (user.is_verified) {
         logger.info(`Verification email resend attempt for already-verified user: ${email}`);
         return { message: 'If your email is registered, a verification email has been sent' };
       }
 
       // Generate verification token
-      const verificationToken = crypto.randomBytes(32).toString('hex');
+      const verificationToken = this.generateRandomToken();
+      const verificationExpires = new Date(Date.now() + this.TOKEN_EXPIRY);
       
-      // Save verification token with expiry
       await user.update({
-        verificationToken,
-        verificationExpires: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
+        verification_token: verificationToken,
+        verification_expires: verificationExpires
       });
       
       // Send verification email
       const verificationUrl = `${config.app.clientUrl}/verify-email?token=${verificationToken}`;
       
-      await EmailService.sendVerificationEmail(user.email, {
-        firstName: user.firstName,
-        verificationUrl
-      });
-      
+      await EmailService.sendVerificationEmail(user, verificationToken);
+
       logger.info(`Verification email resent to: ${email}`);
       return { message: 'Verification email sent successfully' };
     } catch (error) {
@@ -603,6 +720,37 @@ class AuthService {
   }
 
   /**
+   * Get user by reset token
+   * @private
+   */
+  static async getUserByResetToken(token) {
+    const user = await User.findOne({
+      where: {
+        reset_password_token: token,
+        reset_password_expires: { [User.sequelize.Op.gt]: new Date() }
+      }
+    });
+    
+    if (!user) {
+      logger.debug('Invalid or expired reset token', {
+        token: this.redactSensitiveInfo(token)
+      });
+      
+      throw new APIError({
+        message: 'Password reset token is invalid or has expired',
+        statusCode: 400
+      });
+    }
+    
+    logger.debug('Found user by reset token', {
+      userId: user.id,
+      email: this.redactSensitiveInfo(user.email)
+    });
+    
+    return user;
+  }
+
+  /**
    * Request password reset
    * @param {string} email - User email
    * @returns {Object} Success message
@@ -610,39 +758,57 @@ class AuthService {
    */
   static async requestPasswordReset(email) {
     try {
+      // Log password reset request with redacted email
+      logger.debug('Password reset requested', {
+        email: this.redactSensitiveInfo(email)
+      });
+
       const user = await User.findOne({ where: { email } });
       
-      // Always return success even if user not found for security
       if (!user) {
-        logger.info(`Password reset requested for non-existent email: ${email}`);
-        return {
-          message: 'If your email is registered, you will receive password reset instructions'
+        // Don't leak information about existing users
+        logger.info(`Password reset attempt for non-existent user`, {
+          email: this.redactSensitiveInfo(email)
+        });
+        return { 
+          message: 'If your email is registered, a password reset link has been sent'
         };
       }
-      
-      // Generate reset token
-      const resetToken = this.generateRandomToken();
+
+      // Generate reset token and expiry
+      const resetToken = crypto.randomBytes(32).toString('hex');
       const resetExpires = new Date(Date.now() + this.RESET_EXPIRY);
       
       await user.update({
-        resetPasswordToken: resetToken,
-        resetPasswordExpires: resetExpires
+        reset_password_token: resetToken,
+        reset_password_expires: resetExpires
       });
       
+      // Log token creation without revealing the actual token
+      logger.debug('Password reset token generated', {
+        userId: user.id,
+        email: this.redactSensitiveInfo(user.email),
+        token: this.redactSensitiveInfo(resetToken),
+        expires: resetExpires
+      });
+
       await EmailService.sendPasswordResetEmail(user, resetToken);
       
-      return {
-        message: 'If your email is registered, you will receive password reset instructions'
-      };
-    } catch (error) {
-      logger.error('Password reset request failed:', error);
-      throw new APIError({
-        message: 'Failed to process password reset request',
-        statusCode: 500
+      logger.info('Password reset email sent', {
+        userId: user.id,
+        email: this.redactSensitiveInfo(user.email)
       });
+
+      return { message: 'Password reset email sent successfully' };
+    } catch (error) {
+      logger.error('Password reset request failed', {
+        email: this.redactSensitiveInfo(email),
+        error: error.message
+      });
+      throw this.handleError(error, 'Password reset request failed');
     }
   }
-  
+
   /**
    * Reset password
    * @param {string} token - Reset token
@@ -652,42 +818,34 @@ class AuthService {
    */
   static async resetPassword(token, newPassword) {
     try {
-      const user = await this.getUserByResetToken(token);
+      // Log password reset attempt with redacted token
+      logger.debug('Password reset attempt', {
+        token: this.redactSensitiveInfo(token),
+        passwordLength: newPassword ? newPassword.length : 0
+      });
+
+      // Validate password strength
       this.validatePasswordStrength(newPassword);
       
-      await this.updateUserPassword(user, newPassword);
-      await SessionManager.invalidateAllUserSessions(user.id);
-      await EmailService.sendPasswordChangedEmail(user);
+      // Get user by reset token
+      const user = await this.getUserByResetToken(token);
       
-      return {
-        message: 'Password has been reset successfully. Please log in with your new password.'
-      };
+      // Update user password
+      await this.updateUserPassword(user, newPassword);
+      
+      logger.info('Password reset successful', {
+        userId: user.id,
+        email: this.redactSensitiveInfo(user.email)
+      });
+      
+      return { message: 'Password reset successful. You can now log in with your new password.' };
     } catch (error) {
-      logger.error('Password reset failed:', error);
+      logger.error('Password reset failed', {
+        token: this.redactSensitiveInfo(token),
+        error: error.message
+      });
       throw this.handleError(error, 'Password reset failed');
     }
-  }
-
-  /**
-   * Get user by reset token
-   * @private
-   */
-  static async getUserByResetToken(token) {
-    const user = await User.findOne({
-      where: {
-        resetPasswordToken: token,
-        resetPasswordExpires: { [User.sequelize.Op.gt]: new Date() }
-      }
-    });
-    
-    if (!user) {
-      throw new APIError({
-        message: 'Password reset token is invalid or has expired',
-        statusCode: 400
-      });
-    }
-    
-    return user;
   }
 
   /**
@@ -713,10 +871,10 @@ class AuthService {
     
     await user.update({
       password: hashedPassword,
-      resetPasswordToken: null,
-      resetPasswordExpires: null,
-      loginAttempts: 0,
-      lockUntil: null
+      reset_password_token: null,
+      reset_password_expires: null,
+      login_attempts: 0,
+      lock_until: null
     });
   }
 

@@ -3,7 +3,7 @@ const printifyService = require('../services/printifyService');
 const orderService = require('../services/orderService'); 
 const { catchAsync, createError } = require('../utils/errorHandler');
 const logger = require('../utils/logger');
-const { sequelize } = require('../models');
+const { sequelize, Order, User } = require('../models');
 
 /**
  * PaymentController handles all payment processing operations
@@ -554,6 +554,398 @@ class PaymentController {
             })
         );
     }
+
+    /**
+     * Internal method to get order by session ID without response handling
+     * Used by permission middleware and other internal processes
+     * @param {string} sessionId - Stripe session ID
+     * @returns {Promise<Object>} Order data
+     */
+    getOrderBySessionIdInternal = async (sessionId) => {
+        try {
+            // Use order service to fetch order details
+            const result = await orderService.getOrderBySessionId(sessionId);
+            return result.data;
+        } catch (error) {
+            this.logger.error(
+                this.logger.response.error({
+                    success: false,
+                    message: 'Error retrieving order details [internal]',
+                    error,
+                    data: { 
+                        sessionId,
+                        errorMessage: error.message
+                    }
+                })
+            );
+            return null;
+        }
+    }
+
+    /**
+     * Get a specific user's order history (admin only)
+     * @route GET /api/payment/user/:userId/orders
+     */
+    getUserOrdersByAdmin = catchAsync(async (req, res) => {
+        const { userId } = req.params;
+        
+        if (!userId) {
+            throw createError('User ID is required', 400);
+        }
+        
+        // Log order history request
+        this.logger.info(
+            this.logger.response.business({
+                message: 'Admin retrieving user order history',
+                data: { targetUserId: userId }
+            }).withRequestDetails(req)
+        );
+        
+        // Check if user exists
+        const user = await User.findByPk(userId);
+        if (!user) {
+            throw createError('User not found', 404);
+        }
+        
+        try {
+            // Use order service to fetch user's orders
+            const orders = await orderService.getOrdersByUserId(userId);
+            
+            return res.sendSuccess(
+                orders,
+                `Order history for user ${userId} retrieved successfully`
+            );
+        } catch (error) {
+            // Log error
+            this.logger.error(
+                this.logger.response.error({
+                    success: false,
+                    message: 'Error retrieving user order history',
+                    error,
+                    data: { 
+                        targetUserId: userId,
+                        errorMessage: error.message
+                    }
+                })
+            );
+            
+            throw error;
+        }
+    });
+    
+    /**
+     * Get all orders with filtering and pagination (admin only)
+     * @route GET /api/payment/admin/orders
+     */
+    getAllOrders = catchAsync(async (req, res) => {
+        const { 
+            page = 1, 
+            limit = 20, 
+            status, 
+            fromDate, 
+            toDate,
+            sort = 'newest' 
+        } = req.query;
+        
+        // Log all orders request
+        this.logger.info(
+            this.logger.response.business({
+                message: 'Admin retrieving all orders',
+                data: { 
+                    page, 
+                    limit, 
+                    status,
+                    dateRange: fromDate && toDate ? `${fromDate} to ${toDate}` : 'all time',
+                    sort
+                }
+            }).withRequestDetails(req)
+        );
+        
+        try {
+            // Set up filters
+            const filters = {};
+            
+            if (status) {
+                filters.status = status;
+            }
+            
+            if (fromDate && toDate) {
+                filters.createdAt = {
+                    [sequelize.Op.between]: [new Date(fromDate), new Date(toDate)]
+                };
+            }
+            
+            // Set up sorting
+            let orderCriteria;
+            switch(sort) {
+                case 'oldest':
+                    orderCriteria = [['createdAt', 'ASC']];
+                    break;
+                case 'highest':
+                    orderCriteria = [['totalAmount', 'DESC']];
+                    break;
+                case 'lowest':
+                    orderCriteria = [['totalAmount', 'ASC']];
+                    break;
+                case 'newest':
+                default:
+                    orderCriteria = [['createdAt', 'DESC']];
+            }
+            
+            // Query orders with pagination
+            const { rows: orders, count } = await Order.findAndCountAll({
+                where: filters,
+                order: orderCriteria,
+                limit: parseInt(limit),
+                offset: (parseInt(page) - 1) * parseInt(limit),
+                include: [
+                    {
+                        model: User,
+                        as: 'user',
+                        attributes: ['id', 'firstName', 'lastName', 'email']
+                    }
+                ]
+            });
+            
+            return res.sendSuccess(
+                {
+                    orders,
+                    pagination: {
+                        total: count,
+                        page: parseInt(page),
+                        limit: parseInt(limit),
+                        pages: Math.ceil(count / parseInt(limit))
+                    }
+                },
+                'All orders retrieved successfully'
+            );
+        } catch (error) {
+            // Log error
+            this.logger.error(
+                this.logger.response.error({
+                    success: false,
+                    message: 'Error retrieving all orders',
+                    error,
+                    data: { 
+                        errorMessage: error.message
+                    }
+                })
+            );
+            
+            throw error;
+        }
+    });
+    
+    /**
+     * Get order statistics for dashboard (admin only)
+     * @route GET /api/payment/admin/stats
+     */
+    getOrderStatistics = catchAsync(async (req, res) => {
+        const { timeRange = 'week' } = req.query;
+        const now = new Date();
+        let startDate;
+        
+        // Determine date range
+        switch(timeRange) {
+            case 'day':
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 1);
+                break;
+            case 'month':
+                startDate = new Date(now);
+                startDate.setMonth(now.getMonth() - 1);
+                break;
+            case 'year':
+                startDate = new Date(now);
+                startDate.setFullYear(now.getFullYear() - 1);
+                break;
+            case 'week':
+            default:
+                startDate = new Date(now);
+                startDate.setDate(now.getDate() - 7);
+        }
+        
+        // Log stats request
+        this.logger.info(
+            this.logger.response.business({
+                message: 'Admin retrieving order statistics',
+                data: { 
+                    timeRange,
+                    startDate: startDate.toISOString(),
+                    endDate: now.toISOString()
+                }
+            }).withRequestDetails(req)
+        );
+        
+        try {
+            // Get total sales and order count
+            const salesStats = await Order.findAll({
+                attributes: [
+                    [sequelize.fn('SUM', sequelize.col('totalAmount')), 'totalSales'],
+                    [sequelize.fn('COUNT', sequelize.col('id')), 'totalOrders']
+                ],
+                where: {
+                    createdAt: {
+                        [sequelize.Op.between]: [startDate, now]
+                    },
+                    status: {
+                        [sequelize.Op.not]: 'cancelled'
+                    }
+                }
+            });
+            
+            // Get sales grouped by day (for graphs)
+            const dailySales = await Order.findAll({
+                attributes: [
+                    [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+                    [sequelize.fn('SUM', sequelize.col('totalAmount')), 'amount'],
+                    [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+                ],
+                where: {
+                    createdAt: {
+                        [sequelize.Op.between]: [startDate, now]
+                    },
+                    status: {
+                        [sequelize.Op.not]: 'cancelled'
+                    }
+                },
+                group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+                order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']]
+            });
+            
+            // Get stats by status
+            const statusStats = await Order.findAll({
+                attributes: [
+                    'status',
+                    [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+                ],
+                group: ['status']
+            });
+            
+            return res.sendSuccess(
+                {
+                    summary: {
+                        totalSales: parseFloat(salesStats[0]?.dataValues?.totalSales || 0),
+                        totalOrders: parseInt(salesStats[0]?.dataValues?.totalOrders || 0)
+                    },
+                    dailySales: dailySales.map(day => ({
+                        date: day.dataValues.date,
+                        amount: parseFloat(day.dataValues.amount),
+                        count: parseInt(day.dataValues.count)
+                    })),
+                    byStatus: statusStats.map(status => ({
+                        status: status.dataValues.status,
+                        count: parseInt(status.dataValues.count)
+                    }))
+                },
+                'Order statistics retrieved successfully'
+            );
+        } catch (error) {
+            // Log error
+            this.logger.error(
+                this.logger.response.error({
+                    success: false,
+                    message: 'Error retrieving order statistics',
+                    error,
+                    data: { 
+                        errorMessage: error.message
+                    }
+                })
+            );
+            
+            throw error;
+        }
+    });
+    
+    /**
+     * Process a refund for an order (admin only)
+     * @route POST /api/payment/admin/refund/:orderId
+     */
+    processRefund = catchAsync(async (req, res) => {
+        const { orderId } = req.params;
+        const { reason, amount, refundAll = false } = req.body;
+        
+        if (!orderId) {
+            throw createError('Order ID is required', 400);
+        }
+        
+        // Log refund request
+        this.logger.info(
+            this.logger.response.business({
+                message: 'Admin processing refund',
+                data: { 
+                    orderId,
+                    refundAll,
+                    amount: refundAll ? 'full amount' : amount
+                }
+            }).withRequestDetails(req)
+        );
+        
+        try {
+            // Get order details
+            const order = await Order.findByPk(orderId);
+            
+            if (!order) {
+                throw createError('Order not found', 404);
+            }
+            
+            if (order.refunded) {
+                throw createError('Order has already been refunded', 400);
+            }
+            
+            // Get payment intent from Stripe
+            const session = await stripe.checkout.sessions.retrieve(order.sessionId, {
+                expand: ['payment_intent']
+            });
+            
+            if (!session.payment_intent) {
+                throw createError('Payment intent not found for this order', 404);
+            }
+            
+            // Process refund in Stripe
+            const refundAmount = refundAll 
+                ? undefined // Refund the full amount
+                : Math.round(parseFloat(amount) * 100); // Convert to cents
+            
+            const refund = await stripe.refunds.create({
+                payment_intent: session.payment_intent.id,
+                amount: refundAmount,
+                reason: reason || 'requested_by_customer'
+            });
+            
+            // Update order status
+            await order.update({
+                refunded: true,
+                refundedAt: new Date(),
+                refundAmount: refundAll ? order.totalAmount : parseFloat(amount),
+                refundReason: reason,
+                status: 'refunded'
+            });
+            
+            return res.sendSuccess(
+                {
+                    refund,
+                    order: order.toJSON()
+                },
+                'Refund processed successfully'
+            );
+        } catch (error) {
+            // Log error
+            this.logger.error(
+                this.logger.response.error({
+                    success: false,
+                    message: 'Error processing refund',
+                    error,
+                    data: { 
+                        orderId,
+                        errorMessage: error.message
+                    }
+                })
+            );
+            
+            throw error;
+        }
+    });
 }
 
 // Export a singleton instance

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import axios from 'axios';
 import router from '@/router';
+import { useToast } from '@/composables/useToast';
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -54,10 +55,61 @@ export const useAuthStore = defineStore('auth', {
       try {
         this.loading = true;
         const response = await axios.post('/api/auth/login', credentials);
-        if (response.success) {
-          const { accessToken, refreshToken } = response.data.data;
-          this.setTokens(accessToken, refreshToken);
-          this.user = response.data.data.user;
+        
+        // Enhanced debugging to see the exact structure of the response
+        console.log('Full login response:', {
+          status: response.status,
+          headers: response.headers,
+          data: JSON.stringify(response.data, null, 2)
+        });
+        
+        // Check if login was successful based on response.data.success
+        if (response.data && response.data.success) {
+          // Debug the response structure
+          console.log('Login response structure:', JSON.stringify(response.data, null, 2));
+          
+          // Extract token data from the response
+          // Try multiple possible paths to find tokens since server might have different response formats
+          let accessToken, refreshToken, user;
+          
+          if (response.data.data) {
+            // Standard path through response.data.data
+            ({ accessToken, refreshToken, user } = response.data.data);
+            console.log('Found tokens in response.data.data');
+          } 
+          else if (response.data.result) {
+            // Alternative path through response.data.result
+            ({ accessToken, refreshToken, user } = response.data.result);
+            console.log('Found tokens in response.data.result');
+          }
+          
+          // Set tokens if they exist
+          if (accessToken && refreshToken) {
+            console.log('Setting tokens in store');
+            this.setTokens(accessToken, refreshToken);
+            
+            // If user data was included in response, use it
+            if (user) {
+              console.log('User data found in response:', user);
+              this.user = user;
+            } else {
+              // Otherwise fetch user profile
+              console.log('No user data in response, fetching profile');
+              await this.fetchUserProfile();
+            }
+            
+            // Show welcome toast notification
+            const { showToast } = useToast();
+            showToast(`Welcome back, ${this.user?.firstName || 'User'}!`, 'success');
+            
+            // Redirect to dashboard
+            router.push('/dashboard');
+          } else {
+            // Handle missing tokens
+            console.error('Login response missing token data', response.data);
+            const { showToast } = useToast();
+            showToast('Authentication error. Please try again.', 'error');
+          }
         }
         return response.data;
       } catch (error) {
@@ -119,12 +171,23 @@ export const useAuthStore = defineStore('auth', {
 
     async fetchUserProfile() {
       try {
-        const response = await axios.get('/api/auth/profile');
+        // Check if token exists before making the API call
+        if (!this.token) {
+          console.warn('Attempted to fetch user profile without authentication token');
+          return { success: false, message: 'No authentication token' };
+        }
+        
+        const response = await axios.get('/api/auth/me');
         if (response.data.success) {
           this.user = response.data.data;
         }
         return response.data;
       } catch (error) {
+        // Don't throw error for 401 responses - just handle them
+        if (error.response?.status === 401) {
+          console.warn('Session expired or invalid while fetching profile');
+          return { success: false, message: 'Authentication failed' };
+        }
         throw error;
       }
     },
@@ -203,20 +266,33 @@ export const useAuthStore = defineStore('auth', {
     async initialize() {
       if (this.token) {
         try {
-          await this.fetchUserProfile();
-        } catch (error) {
-          if (error.response?.status === 401 && this.refreshToken) {
+          // Ensure axios is configured with the token
+          axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`;
+          
+          // Try to get user profile
+          const profileResult = await this.fetchUserProfile();
+          
+          // If profile fetch fails with 401, try refresh token
+          if (!profileResult.success && this.refreshToken) {
             try {
-              await this.refreshAccessToken();
-              await this.fetchUserProfile();
+              // Attempt to refresh the token
+              const refreshResult = await this.refreshAccessToken();
+              if (refreshResult.success) {
+                await this.fetchUserProfile();
+              } else {
+                this.clearTokens();
+                router.push('/auth/login');
+              }
             } catch (refreshError) {
+              console.error('Token refresh failed:', refreshError);
               this.clearTokens();
-              router.push('/login');
+              router.push('/auth/login');
             }
-          } else {
-            this.clearTokens();
-            router.push('/login');
           }
+        } catch (error) {
+          console.error('Authentication initialization error:', error);
+          this.clearTokens();
+          router.push('/auth/login');
         }
       }
     }

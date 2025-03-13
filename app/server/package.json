@@ -14,7 +14,8 @@
     "logs:clean": "node ./src/utils/logger/clean.js",
     "kill-server": "powershell -Command \"Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id (Get-Process | Where-Object {$_.Id -eq $_.OwningProcess}) -Force -ErrorAction SilentlyContinue }\"",
     "kill-node": "powershell -Command \"Get-Process -Name node -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue\"",
-    "safe-start": "npm run kill-server && npm run dev"
+    "safe-start": "npm run kill-server && npm run dev",
+    "lint": "eslint . --ext .js --fix"
   },
   "keywords": [],
   "author": "",
@@ -32,15 +33,21 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "express-validator": "^7.2.1",
+    "fs-extra": "^11.3.0",
+    "glob": "^11.0.1",
+    "gray-matter": "^4.0.3",
     "helmet": "^8.0.0",
     "highlight.js": "^11.11.1",
     "joi": "^17.13.3",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-table-of-contents": "^0.9.0",
     "marked": "^15.0.7",
     "morgan": "^1.10.0",
     "mysql2": "^3.12.0",
     "node-cache": "^5.1.2",
     "nodemailer": "^6.10.0",
-    "nodemon": "^3.1.9",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "path": "^0.12.7",
@@ -53,6 +60,10 @@
     "ws": "^8.18.1"
   },
   "devDependencies": {
+    "eslint": "^8.56.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "nodemon": "^3.1.9",
     "sequelize-cli": "^6.6.2"
   }
 }

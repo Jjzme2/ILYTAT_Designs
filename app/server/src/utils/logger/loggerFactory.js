@@ -11,6 +11,18 @@ const os = require('os');
 const { createNamespace } = require('cls-hooked');
 const { performance } = require('perf_hooks');
 
+// Import security utilities for sensitive data redaction
+let securityUtils;
+try {
+    securityUtils = require('../securityUtils');
+} catch (error) {
+    // Fallback if security utils are not available (to prevent circular dependencies)
+    securityUtils = {
+        sanitizeObjectForLogs: (obj) => obj,
+        redactSensitiveInfo: (val) => val
+    };
+}
+
 // Create a namespace for the correlation ID
 const namespace = createNamespace('request-context');
 
@@ -75,6 +87,18 @@ class LoggerFactory {
             return info;
         });
 
+        // Security format to redact sensitive information
+        this.securityFormat = winston.format((info) => {
+            try {
+                // Use the securityUtils to sanitize the entire log object
+                return securityUtils.sanitizeObjectForLogs(info);
+            } catch (error) {
+                // If sanitization fails, return original but log an internal warning
+                console.warn('Failed to sanitize log data:', error);
+                return info;
+            }
+        });
+
         // Performance metrics format
         this.performanceFormat = winston.format((info) => {
             info.performance = {
@@ -104,6 +128,7 @@ class LoggerFactory {
             winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
             winston.format.errors({ stack: true }),
             this.errorFormat(),
+            this.securityFormat(),
             this.performanceFormat(),
             this.systemFormat(),
             winston.format.json()

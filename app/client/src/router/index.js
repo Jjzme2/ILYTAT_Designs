@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/auth'
 // Layouts
 const DefaultLayout = () => import('@/layouts/DefaultLayout.vue')
 const AuthLayout = () => import('@/layouts/AuthLayout.vue')
+const PublicLayout = () => import('@/layouts/PublicLayout.vue')
 
 // Auth Views
 const LoginView = () => import('@/views/auth/LoginView.vue')
@@ -17,6 +18,11 @@ const ProductsView = () => import('@/views/printify/ProductsView.vue')
 const OrdersView = () => import('@/views/printify/OrdersView.vue')
 const ProfileView = () => import('@/views/profile/ProfileView.vue')
 
+// Public Views
+const HomeView = () => import('@/views/HomeView.vue')
+const PublicProductsView = () => import('@/views/ProductsView.vue')
+const ProductDetailView = () => import('@/views/ProductDetailView.vue')
+
 // Cart & Checkout Views
 const CartView = () => import('@/views/cart/CartView.vue')
 const CheckoutSuccessView = () => import('@/views/checkout/SuccessView.vue')
@@ -27,6 +33,7 @@ const OrderHistoryView = () => import('@/views/order/OrderHistoryView.vue')
 // Documentation Views
 const DocumentationListView = () => import('@/views/documentation/ListView.vue')
 const DocumentationDetailView = () => import('@/views/documentation/DetailView.vue')
+const DocumentationBrowserView = () => import('@/views/DocumentationBrowserView.vue')
 
 // System Views
 const SystemHealthView = () => import('@/views/system/HealthView.vue')
@@ -35,34 +42,27 @@ const SystemLogsView = () => import('@/views/system/LogsView.vue')
 const routes = [
   {
     path: '/',
-    component: DefaultLayout,
-    meta: { requiresAuth: true },
+    component: PublicLayout,
+    meta: { requiresAuth: false },
     children: [
       {
         path: '',
-        name: 'dashboard',
-        component: DashboardView,
-        meta: { title: 'Dashboard' }
+        name: 'home',
+        component: HomeView,
+        meta: { title: 'Home' }
       },
       {
-        path: 'products',
-        name: 'products',
-        component: ProductsView,
-        meta: { title: 'Products' }
+        path: 'shop',
+        name: 'shop',
+        component: PublicProductsView,
+        meta: { title: 'Shop' }
       },
       {
-        path: 'orders',
-        name: 'orders',
-        component: OrdersView,
-        meta: { title: 'Orders' }
+        path: 'product/:id',
+        name: 'product-detail',
+        component: ProductDetailView,
+        meta: { title: 'Product Details' }
       },
-      {
-        path: 'profile',
-        name: 'profile',
-        component: ProfileView,
-        meta: { title: 'Profile' }
-      },
-      // Cart & Checkout routes
       {
         path: 'cart',
         name: 'cart',
@@ -81,6 +81,38 @@ const routes = [
         component: CheckoutCancelView,
         meta: { title: 'Payment Cancelled' }
       },
+    ]
+  },
+  {
+    path: '/dashboard',
+    component: DefaultLayout,
+    meta: { requiresAuth: true },
+    children: [
+      {
+        path: '',
+        name: 'dashboard',
+        component: DashboardView,
+        meta: { title: 'Dashboard' }
+      },
+      {
+        path: 'products',
+        name: 'admin-products',
+        component: ProductsView,
+        meta: { title: 'Products Management' }
+      },
+      {
+        path: 'orders',
+        name: 'orders',
+        component: OrdersView,
+        meta: { title: 'Orders' }
+      },
+      {
+        path: 'profile',
+        name: 'profile',
+        component: ProfileView,
+        meta: { title: 'Profile' }
+      },
+      // Order management routes
       {
         path: 'order/confirmation',
         name: 'order-confirmation',
@@ -116,6 +148,15 @@ const routes = [
         component: DocumentationDetailView,
         meta: { 
           title: 'Documentation Details',
+          roles: ['admin', 'developer', 'support']
+        }
+      },
+      {
+        path: 'documentation/browser',
+        name: 'documentation-browser',
+        component: DocumentationBrowserView,
+        meta: { 
+          title: 'Documentation Browser',
           roles: ['admin', 'developer', 'support']
         }
       },

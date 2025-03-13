@@ -97,7 +97,7 @@ export default {
       error.value = null
       
       try {
-        const { data } = await axios.get('/api/printifyApi/shops')
+        const { data } = await axios.get('/api/printify/shops')
         shops.value = data.data
       } catch (err) {
         error.value = err.response?.data?.message || 'Failed to load shops'

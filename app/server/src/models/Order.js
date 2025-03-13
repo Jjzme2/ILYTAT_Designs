@@ -1,4 +1,7 @@
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 const logger = require('../utils/logger');
 
 /**
@@ -11,7 +14,7 @@ module.exports = (sequelize) => {
             // Define associations - only if OrderItem exists
             if (models.OrderItem) {
                 this.hasMany(models.OrderItem, { 
-                    foreignKey: 'orderId',
+                    foreignKey: 'order_id',
                     as: 'items'
                 });
             }

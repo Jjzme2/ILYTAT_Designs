@@ -1,5 +1,8 @@
-'use strict';
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+'use strict';
+
 
 /**
  * PrintifyCache Model

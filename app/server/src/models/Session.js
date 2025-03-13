@@ -1,23 +1,25 @@
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 
 module.exports = (sequelize) => {
     class Session extends Model {
         static associate(models) {
-            this.belongsTo(models.User, { foreignKey: 'userId' });
+            this.belongsTo(models.User, { foreignKey: 'user_id' });
         }
     }
 
-    Session.init({
+    const attributes = standardizeAttributes({
         id: {
             type: DataTypes.UUID,
             defaultValue: DataTypes.UUIDV4,
             primaryKey: true
         },
-        userId: {
+        user_id: {
             type: DataTypes.UUID,
             allowNull: false,
             references: {
-                model: 'Users',
+                model: 'users',
                 key: 'id'
             }
         },
@@ -26,29 +28,35 @@ module.exports = (sequelize) => {
             allowNull: false,
             unique: true
         },
-        ipAddress: {
+        ip_address: {
             type: DataTypes.STRING
         },
-        userAgent: {
+        user_agent: {
             type: DataTypes.STRING
         },
-        isValid: {
+        is_valid: {
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
-        expiresAt: {
+        expires_at: {
             type: DataTypes.DATE,
             allowNull: false
         }
-    }, {
+    });
+
+    const options = enhanceModelOptions({
         sequelize,
         modelName: 'Session',
+        tableName: 'sessions',
+        paranoid: true, // Enable soft deletes with deleted_at
         indexes: [
             // Removed redundant indices that are already defined in migrations
             // These indices are already created in migration file:
-            // - 20250227000006-create-sessions.js (userId, token)
+            // - 20250227000006-create-sessions.js (user_id, token)
         ]
     });
+
+    Session.init(attributes, options);
 
     return Session;
 };

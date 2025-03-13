@@ -1,15 +1,18 @@
+
 const { Model, DataTypes } = require('sequelize');
+const { enhanceModelOptions, standardizeAttributes } = require('../utils/modelEnhancer');
+
 
 module.exports = (sequelize) => {
     class Role extends Model {
         static associate(models) {
             this.belongsToMany(models.User, {
-                through: 'UserRoles',
-                foreignKey: 'roleId'
+                through: 'user_roles',
+                foreignKey: 'role_id'
             });
             this.belongsToMany(models.Permission, {
-                through: 'RolePermissions',
-                foreignKey: 'roleId'
+                through: 'role_permissions',
+                foreignKey: 'role_id'
             });
         }
     }
@@ -31,30 +34,31 @@ module.exports = (sequelize) => {
         description: {
             type: DataTypes.STRING
         },
-        isActive: {
+        is_active: {
             type: DataTypes.BOOLEAN,
             defaultValue: true
         },
-        createdAt: {
+        created_at: {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: DataTypes.NOW
         },
-        updatedAt: {
+        updated_at: {
             type: DataTypes.DATE,
             allowNull: false,
             defaultValue: DataTypes.NOW
         },
-        deletedAt: {
+        deleted_at: {
             type: DataTypes.DATE,
             allowNull: true
         }
     }, {
         sequelize,
         modelName: 'Role',
+        tableName: 'roles',
         timestamps: true,
         paranoid: true,
-        underscored: false,
+        underscored: true,
         indexes: [
             // Removed redundant indices that are already defined in migrations
             // These indices are already created in migration files:
