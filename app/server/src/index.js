@@ -10,8 +10,12 @@ const logger = require('./utils/logger');
 const { initializeDatabase } = require('./database');
 const http = require('http');
 const communicationMiddleware = require('./middleware/communicationMiddleware');
+const printifyCSPMiddleware = require('./middleware/printifyCSPMiddleware');
 
 const app = express();
+
+// Apply custom Printify CSP middleware BEFORE Helmet
+app.use(printifyCSPMiddleware);
 
 // Apply security middleware
 app.use(helmet({
@@ -20,7 +24,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "blob:"],
+      imgSrc: ["'self'", "data:", "blob:", "https://images-api.printify.com"],
       fontSrc: ["'self'", "data:"],
       connectSrc: ["'self'"],
       mediaSrc: ["'self'"],

@@ -15,6 +15,7 @@ const authRoutes = require('./auth');
 const paymentRoutes = require('./payments');
 const debugRoutes = require('./debug');
 const contactRoutes = require('./contact');
+const configRoutes = require('./config');
 const auditRoutes = require('./audit');
 const systemRoutes = require('./system');
 const featuredProductRoutes = require('./featuredProducts');
@@ -54,6 +55,10 @@ router.use('/payment', paymentRouter);
 const contactRouter = express.Router();
 contactRoutes(contactRouter);
 router.use('/contact', contactRouter);
+
+const configRouter = express.Router();
+configRoutes(configRouter);
+router.use('/config', configRouter);
 
 // Audit Routes
 const auditRouter = express.Router();

@@ -1,11 +1,17 @@
 <template>
   <div class="product-card" @click="navigateToProduct">
     <div class="product-image-container">
+      <div v-if="isImageLoading" class="image-loading-container">
+        <div class="loading-spinner"></div>
+      </div>
       <img 
         :src="productImage" 
         :alt="product.title" 
         class="product-image"
         loading="lazy"
+        @load="handleImageLoaded"
+        @error="handleImageError"
+        :class="{ 'image-loaded': !isImageLoading }"
       />
       <div v-if="isDiscounted" class="discount-badge">Sale</div>
       <div v-if="!isInStock" class="out-of-stock-badge">Out of Stock</div>
@@ -34,7 +40,7 @@
 </template>
 
 <script>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 export default {
@@ -51,6 +57,7 @@ export default {
   
   setup(props) {
     const router = useRouter()
+    const isImageLoading = ref(true)
     
     // Computed properties
     const productImage = computed(() => {
@@ -58,7 +65,7 @@ export default {
       if (props.product.images && props.product.images.length > 0) {
         return props.product.images[0].src;
       }
-      
+      console.log('No images available for product:', props.product.title)
       // If no images available, use placeholder
       return '/images/placeholder-product.jpg'
     })
@@ -105,13 +112,25 @@ export default {
       })
     }
     
+    const handleImageLoaded = () => {
+      isImageLoading.value = false
+    }
+    
+    const handleImageError = () => {
+      isImageLoading.value = false
+      console.error(`Error loading image for product: ${props.product.title}`)
+    }
+    
     return {
       productImage,
       formattedPrice,
       formattedComparePrice,
       isDiscounted,
       isInStock,
-      navigateToProduct
+      navigateToProduct,
+      isImageLoading,
+      handleImageLoaded,
+      handleImageError
     }
   }
 }
@@ -139,6 +158,7 @@ export default {
   position: relative;
   padding-top: 100%; /* 1:1 Aspect Ratio */
   overflow: hidden;
+  background-color: #f9f9f9;
 }
 
 .product-image {
@@ -148,7 +168,38 @@ export default {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+  opacity: 0;
+}
+
+.image-loaded {
+  opacity: 1;
+}
+
+.image-loading-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top-color: #3498db;
+  animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .product-card:hover .product-image {

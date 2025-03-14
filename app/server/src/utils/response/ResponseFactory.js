@@ -7,6 +7,7 @@ const ErrorResponse = require('./ErrorResponse');
 const NetworkResponse = require('./NetworkResponse');
 const AuthResponse = require('./AuthResponse');
 const BusinessResponse = require('./BusinessResponse');
+const dataEncoder = require('../security/dataEncoder');
 
 class ResponseFactory {
     /**
@@ -29,6 +30,13 @@ class ResponseFactory {
         this.forbidden = this.forbidden.bind(this);
         this.unauthorized = this.unauthorized.bind(this);
         this.createMiddleware = this.createMiddleware.bind(this);
+        
+        // New response methods
+        this.created = this.created.bind(this);
+        this.accepted = this.accepted.bind(this);
+        this.noContent = this.noContent.bind(this);
+        this.badRequest = this.badRequest.bind(this);
+        this.encodeSensitive = this.encodeSensitive.bind(this);
     }
 
     /**
@@ -61,11 +69,84 @@ class ResponseFactory {
      * @param {string} [options.message] - Developer message
      * @param {string} [options.userMessage] - User-friendly message
      * @param {any} [options.data] - Response data
+     * @param {string} [options.resourceType] - Type of resource ('single' or 'collection')
      * @param {Object} [options.metadata] - Additional metadata
      * @returns {SuccessResponse} Success response
      */
     success(options = {}) {
         const response = new SuccessResponse(options);
+        this._ensureEnhancementMethods(response);
+        this._logResponse(response);
+        return response;
+    }
+    
+    /**
+     * Create a created success response (201)
+     * 
+     * @param {Object} options - Response options
+     * @param {string} [options.message='Resource created successfully'] - Developer message
+     * @param {string} [options.userMessage='Resource created successfully'] - User-friendly message
+     * @param {any} [options.data] - Response data
+     * @param {string} [options.resourceType='single'] - Type of resource
+     * @returns {SuccessResponse} Success response
+     */
+    created(options = {}) {
+        const response = new SuccessResponse({
+            message: 'Resource created successfully',
+            userMessage: 'Resource created successfully',
+            resourceType: 'single',
+            ...options,
+            metadata: {
+                ...options.metadata,
+                statusCode: 201
+            }
+        });
+        this._ensureEnhancementMethods(response);
+        this._logResponse(response);
+        return response;
+    }
+    
+    /**
+     * Create an accepted response (202)
+     * 
+     * @param {Object} options - Response options
+     * @param {string} [options.message='Request accepted for processing'] - Developer message
+     * @param {string} [options.userMessage='Your request is being processed'] - User message
+     * @returns {SuccessResponse} Success response
+     */
+    accepted(options = {}) {
+        const response = new SuccessResponse({
+            message: 'Request accepted for processing',
+            userMessage: 'Your request is being processed',
+            ...options,
+            metadata: {
+                ...options.metadata,
+                statusCode: 202
+            }
+        });
+        this._ensureEnhancementMethods(response);
+        this._logResponse(response);
+        return response;
+    }
+    
+    /**
+     * Create a no content response (204)
+     * 
+     * @param {Object} options - Response options
+     * @param {string} [options.message='Operation completed with no content'] - Developer message
+     * @returns {SuccessResponse} Success response
+     */
+    noContent(options = {}) {
+        const response = new SuccessResponse({
+            message: 'Operation completed with no content',
+            userMessage: '',
+            data: null,
+            ...options,
+            metadata: {
+                ...options.metadata,
+                statusCode: 204
+            }
+        });
         this._ensureEnhancementMethods(response);
         this._logResponse(response);
         return response;
@@ -86,6 +167,32 @@ class ResponseFactory {
         const response = new ErrorResponse(options);
         this._ensureEnhancementMethods(response);
         this._logResponse(response, 'error');
+        return response;
+    }
+    
+    /**
+     * Create a bad request error response (400)
+     * 
+     * @param {Object} options - Response options
+     * @param {Error|string} [options.error='Bad request'] - Error object or message
+     * @param {string} [options.message='Bad request'] - Developer message
+     * @param {string} [options.userMessage='The request could not be understood'] - User message
+     * @returns {ErrorResponse} Error response
+     */
+    badRequest(options = {}) {
+        const message = options.message || 'Bad request';
+        const error = options.error || new Error(message);
+        
+        const response = new ErrorResponse({
+            error,
+            message,
+            userMessage: 'The request could not be understood',
+            statusCode: 400,
+            ...options
+        });
+        
+        this._ensureEnhancementMethods(response);
+        this._logResponse(response, 'warn');
         return response;
     }
 
@@ -158,6 +265,21 @@ class ResponseFactory {
         this._logResponse(response);
         return response;
     }
+    
+    /**
+     * Encode sensitive data for secure transmission
+     * 
+     * @param {any} data - Sensitive data to encode
+     * @param {Object} [options] - Encoding options
+     * @param {string} [options.scope='general'] - Scope of the data
+     * @returns {Object} Encoded data with metadata
+     */
+    encodeSensitive(data, options = {}) {
+        return dataEncoder.encode(data, { 
+            sensitive: true,
+            ...options
+        });
+    }
 
     /**
      * Ensure a response object has all necessary enhancement methods
@@ -196,6 +318,24 @@ class ResponseFactory {
                 return this.withDevContext({
                     request: {
                         ...details,
+                        timestamp: new Date().toISOString()
+                    }
+                });
+            };
+        }
+        
+        if (typeof response.withTracing !== 'function') {
+            response.withTracing = function(traceInfo) {
+                this.metadata.tracing = traceInfo;
+                return this;
+            };
+        }
+        
+        if (typeof response.withDebugInfo !== 'function') {
+            response.withDebugInfo = function(debugInfo) {
+                return this.withDevContext({
+                    debug: {
+                        ...debugInfo,
                         timestamp: new Date().toISOString()
                     }
                 });
@@ -300,26 +440,61 @@ class ResponseFactory {
         
         return function responseMiddleware(req, res, next) {
             // Add helper methods to the response object
-            res.sendSuccess = function(data, message = 'Success') {
+            res.sendSuccess = function(data, message = 'Success', statusCode = 200) {
                 const response = factory.success({
                     message,
                     userMessage: message,
-                    data
+                    data,
+                    metadata: { statusCode }
                 });
                 
                 factory._ensureEnhancementMethods(response);
-                return res.status(200).json(response.toClientFormat());
+                
+                // Add request performance metrics if available
+                if (req.startTime) {
+                    response.withPerformanceMetrics({
+                        duration: Date.now() - req.startTime
+                    });
+                }
+                
+                // Add request details for debugging
+                response.withRequestDetails({
+                    method: req.method,
+                    url: req.originalUrl,
+                    ip: req.ip,
+                    userAgent: req.get('user-agent')
+                });
+                
+                return res.status(statusCode).json(response.toClientFormat());
             };
             
             res.sendError = function(error, message, statusCode = 500) {
                 const response = factory.error({
                     error,
                     message: message || error.message,
-                    userMessage: 'An error occurred',
+                    userMessage: process.env.NODE_ENV === 'production'
+                        ? 'An error occurred'
+                        : (message || error.message),
                     statusCode
                 });
                 
                 factory._ensureEnhancementMethods(response);
+                
+                // Add request performance metrics if available
+                if (req.startTime) {
+                    response.withPerformanceMetrics({
+                        duration: Date.now() - req.startTime
+                    });
+                }
+                
+                // Add request details for debugging
+                response.withRequestDetails({
+                    method: req.method,
+                    url: req.originalUrl,
+                    ip: req.ip,
+                    userAgent: req.get('user-agent')
+                });
+                
                 return res.status(statusCode).json(response.toClientFormat());
             };
             
@@ -331,6 +506,15 @@ class ResponseFactory {
                 });
                 
                 factory._ensureEnhancementMethods(response);
+                
+                // Add request details for debugging
+                response.withRequestDetails({
+                    method: req.method,
+                    url: req.originalUrl,
+                    body: req.body,
+                    query: req.query
+                });
+                
                 return res.status(400).json(response.toClientFormat());
             };
             
@@ -358,6 +542,64 @@ class ResponseFactory {
                 
                 factory._ensureEnhancementMethods(response);
                 return res.status(401).json(response.toClientFormat());
+            };
+            
+            // Add new response methods reflecting additional HTTP status codes
+            res.sendCreated = function(data, message = 'Resource created successfully') {
+                const response = factory.created({
+                    data,
+                    message,
+                    userMessage: message
+                });
+                
+                factory._ensureEnhancementMethods(response);
+                return res.status(201).json(response.toClientFormat());
+            };
+            
+            res.sendAccepted = function(message = 'Request accepted for processing') {
+                const response = factory.accepted({
+                    message,
+                    userMessage: message
+                });
+                
+                factory._ensureEnhancementMethods(response);
+                return res.status(202).json(response.toClientFormat());
+            };
+            
+            res.sendNoContent = function() {
+                const response = factory.noContent();
+                factory._ensureEnhancementMethods(response);
+                return res.status(204).end();
+            };
+            
+            // Paginated response helper (common pattern)
+            res.sendPaginatedSuccess = function(data, pagination, message = 'Success') {
+                const response = factory.success({
+                    message,
+                    userMessage: message,
+                    data,
+                    resourceType: 'collection'
+                }).withPagination(pagination);
+                
+                factory._ensureEnhancementMethods(response);
+                return res.status(200).json(response.toClientFormat());
+            };
+            
+            // Send sensitive data with encoding
+            res.sendSensitiveData = function(data, message = 'Success', statusCode = 200) {
+                const response = factory.success({
+                    message,
+                    userMessage: message,
+                    data,
+                    metadata: { statusCode, sensitive: true }
+                });
+                
+                factory._ensureEnhancementMethods(response);
+                
+                // Use encodeSensitiveData option for client format
+                return res.status(statusCode).json(
+                    response.toClientFormat({ encodeSensitiveData: true })
+                );
             };
             
             next();

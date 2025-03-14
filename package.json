@@ -7,7 +7,7 @@
     "client": "cd app/client && npm run dev",
     "server": "cd app/server && npm run dev",
     "syncDatabase": "cd app/server && npm run syncDatabase",
-    "build": "cd app/client && npm run build && cd ../server && npm run build",
+    "build": "cd app/client && npm run build && cd ../..",
     "start": "concurrently \"npm run server\" \"npm run client\"",
     "heroku-postbuild": "cd app/client && npm install && cd ../server && npm install && cd ../client && npm run build",
     "heroku-start": "cd app/server && npm start",

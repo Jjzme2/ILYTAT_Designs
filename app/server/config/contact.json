@@ -1,7 +1,7 @@
 {
     "contactDetails": {
         "company": {
-            "name": "ILYTAT Designs",
+            "name": "ILYTAT LLC",
             "website": "https://www.ILYTAT.com",
             "supportEmail": "support@ilytat.com",
             "commonEmail": "info@ilytat.com",
@@ -16,6 +16,7 @@
               },
               "tagline": "Unique. Creative. Yours."
             },
+            "projectName": "ILYTAT Designs",
             "socialMedia": {
               "tiktok": "https://www.tiktok.com/@Positive_Echoes",
               "facebook": "https://www.facebook.com/people/Ilytat-Designs/61565010253579"

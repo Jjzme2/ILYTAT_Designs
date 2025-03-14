@@ -350,50 +350,165 @@ class PrintifyController {
             }).withRequestDetails(req)
         );
         
-        // Call Printify API through our service
-        const product = await printifyService.getProduct(shopId, productId);
+        try {
+            // Call Printify API through our service
+            this.logger.debug(`Calling printifyService.getProduct with shopId=${shopId}, productId=${productId}`);
+            const product = await printifyService.getProduct(shopId, productId);
+            
+            // Enhanced debugging to see what we're getting from the service
+            this.logger.debug('Product data received from printifyService:', {
+                productId,
+                productExists: !!product,
+                productType: typeof product,
+                hasError: product && product._error ? true : false,
+                isVisible: product ? product.visible : 'unknown',
+                productKeys: product ? Object.keys(product) : [],
+                productDataPreview: product ? JSON.stringify(product).substring(0, 500) : 'null'
+            });
+    
+            // If product is completely missing, handle this case specifically
+            if (!product) {
+                this.logger.warn(`Product ${productId} not found in shop ${shopId}`);
+                // Instead of throwing error, return an empty object with our enhanced response system
+                return res.sendSuccess(
+                    {}, // Empty object instead of null
+                    'Product not found', 
+                    404
+                );
+            }
+            
+            // Check for error indicator from printifyService
+            if (product._error) {
+                this.logger.warn(`Error from printifyService for product ${productId}: ${product._error}`);
+                return res.sendSuccess(
+                    {}, // Empty object instead of null
+                    product._error || 'Error retrieving product', 
+                    500
+                );
+            }
+    
+            // In some cases, the product might exist but not be visible
+            // For public endpoints, we should only show visible products
+            if (product.visible === false) {
+                this.logger.info(`Product ${productId} exists but is not visible`);
+                return res.sendSuccess(
+                    {}, // Empty object instead of null
+                    'Product not available', 
+                    404
+                );
+            }
+    
+            // Return complete product information necessary for the detail view
+            const publicProduct = {
+                id: product.id || productId,
+                title: product.title || 'Untitled Product',
+                description: product.description || '',
+                images: Array.isArray(product.images) ? product.images : [],
+                variants: Array.isArray(product.variants) 
+                    ? product.variants.map(variant => ({
+                        id: variant.id,
+                        title: variant.title || 'Default Variant',
+                        price: variant.price || 0,
+                        sku: variant.sku || '',
+                        is_available: variant.is_available !== false, // Default to true
+                        compare_at: variant.compare_at || null
+                    })) 
+                    : [],
+                options: Array.isArray(product.options) ? product.options : [],
+                tags: Array.isArray(product.tags) ? product.tags : [],
+                created_at: product.created_at || new Date().toISOString(),
+                updated_at: product.updated_at || product.created_at || new Date().toISOString(),
+                category: this._extractCategory(product),
+                shipping: 'Standard shipping (7-14 business days)',
+                metadata: product.metadata || {}
+            };
+    
+            // Calculate price range if we have variants
+            if (publicProduct.variants.length > 0) {
+                const prices = publicProduct.variants
+                    .filter(v => v.is_available !== false)
+                    .map(v => parseFloat(v.price));
+                    
+                if (prices.length > 0) {
+                    const minPrice = Math.min(...prices);
+                    const maxPrice = Math.max(...prices);
+                    
+                    publicProduct.priceRange = minPrice === maxPrice 
+                        ? `$${minPrice.toFixed(2)}` 
+                        : `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`;
+                } else {
+                    publicProduct.priceRange = 'Price unavailable';
+                }
+            } else {
+                publicProduct.priceRange = 'Price unavailable';
+            }
+    
+            // Log successful response
+            this.logger.info(
+                this.logger.response.business({
+                    success: true,
+                    message: 'Public product fetched successfully',
+                    data: {
+                        productId: publicProduct.id,
+                        title: publicProduct.title
+                    }
+                }).withPerformanceMetrics({
+                    duration: req.getElapsedTime ? req.getElapsedTime() : (Date.now() - startTime)
+                })
+            );
+    
+            // Special handling specifically for the public product endpoint
+            // Direct response to avoid any issues with the response formatter
+            return res.status(200).json({
+                success: true,
+                data: publicProduct,
+                message: 'Product retrieved successfully',
+                error: null
+            });
+        } catch (error) {
+            // Log the error for debugging
+            this.logger.error(`Error fetching product ${productId}:`, {
+                error: error.message,
+                stack: error.stack,
+                shopId,
+                productId
+            });
+            
+            // Instead of letting the error propagate, handle it here and return a safe response
+            return res.sendSuccess(
+                {}, // Empty object instead of null
+                'Error retrieving product', 
+                500
+            );
+        }
+    });
 
-        if (!product || !product.visible) {
-            throw createNotFoundError('Product', productId, 'Product not found');
+    /**
+     * Extract category from product tags or metadata
+     * @private
+     */
+    _extractCategory(product) {
+        // Check if we have a category in metadata
+        if (product.metadata && product.metadata.category) {
+            return product.metadata.category;
         }
 
-        // Return public product information
-        const publicProduct = {
-            id: product.id,
-            title: product.title,
-            description: product.description,
-            images: product.images,
-            variants: product.variants.map(variant => ({
-                id: variant.id,
-                title: variant.title,
-                price: variant.price,
-                sku: variant.sku,
-                is_available: variant.is_available
-            })),
-            options: product.options,
-            tags: product.tags,
-            created_at: product.created_at
-        };
-
-        // Log successful response
-        this.logger.info(
-            this.logger.response.business({
-                success: true,
-                message: 'Public product fetched successfully',
-                data: {
-                    productId: publicProduct.id,
-                    title: publicProduct.title
+        // Default categories to check in tags
+        const categoryTags = ['clothing', 'accessories', 'home-decor', 'wall-art'];
+        
+        // Check if any of the product tags match our category list
+        if (Array.isArray(product.tags)) {
+            for (const tag of product.tags) {
+                if (categoryTags.includes(tag.toLowerCase())) {
+                    // Convert to title case for display
+                    return tag.charAt(0).toUpperCase() + tag.slice(1);
                 }
-            }).withPerformanceMetrics({
-                duration: Date.now() - startTime
-            })
-        );
-
-        return res.sendSuccess(
-            publicProduct, 
-            'Product retrieved successfully'
-        );
-    });
+            }
+        }
+        
+        // Default category
+        return 'Other';
+    }
 
     /**
      * Get product categories
@@ -468,7 +583,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             categories, 
-            'Categories retrieved successfully'
+            'Categories retrieved successfully',
+            200
         );
     });
     
@@ -587,7 +703,7 @@ class PrintifyController {
                 limit: parseInt(limit),
                 pages: Math.ceil(totalCount / limit)
             }
-        }, 'Search completed successfully');
+        }, 'Search completed successfully', 200);
     });
 
     /**
@@ -633,7 +749,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             shop, 
-            'Shop details retrieved successfully'
+            'Shop details retrieved successfully',
+            200
         );
     });
 
@@ -659,7 +776,7 @@ class PrintifyController {
         const userOrders = await printifyService.getUserOrders(userId);
 
         if (!userOrders || userOrders.length === 0) {
-            return res.sendSuccess([], 'No orders found for this customer');
+            return res.sendSuccess([], 'No orders found for this customer', 200);
         }
 
         // Log successful response
@@ -678,7 +795,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             userOrders, 
-            'Orders retrieved successfully'
+            'Orders retrieved successfully',
+            200
         );
     });
 
@@ -723,7 +841,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             order, 
-            'Order details retrieved successfully'
+            'Order details retrieved successfully',
+            200
         );
     });
 
@@ -784,7 +903,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             products, 
-            'Admin products retrieved successfully'
+            'Admin products retrieved successfully',
+            200
         );
     });
 
@@ -833,7 +953,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             product, 
-            'Admin product details retrieved successfully'
+            'Admin product details retrieved successfully',
+            200
         );
     });
 
@@ -880,7 +1001,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             order, 
-            'Admin order details retrieved successfully'
+            'Admin order details retrieved successfully',
+            200
         );
     });
 
@@ -924,7 +1046,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             shops, 
-            'Shops retrieved successfully'
+            'Shops retrieved successfully',
+            200
         );
     });
 
@@ -971,7 +1094,8 @@ class PrintifyController {
 
         return res.sendSuccess(
             orders, 
-            'Orders retrieved successfully'
+            'Orders retrieved successfully',
+            200
         );
     });
 }

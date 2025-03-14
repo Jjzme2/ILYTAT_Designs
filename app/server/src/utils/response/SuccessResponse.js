@@ -11,16 +11,20 @@ class SuccessResponse extends ResponseBase {
      * @param {Object} options - Response options
      * @param {string} [options.message='Operation completed successfully'] - Developer message
      * @param {string} [options.userMessage='Success'] - User-friendly message
-     * @param {any} [options.data=null] - Response payload
+     * @param {any} [options.data] - Response payload (will never be null when sent to client)
+     * @param {string} [options.resourceType] - Type of resource being returned ('single', 'collection')
      * @param {Object} [options.metadata={}] - Additional metadata
      */
     constructor({
         message = 'Operation completed successfully',
         userMessage = 'Success',
-        data = null,
+        data,
+        resourceType,
         metadata = {}
     } = {}) {
-        super(true, message, userMessage, data, metadata);
+        // If resourceType is provided, include it in metadata for proper defaulting in base class
+        const enhancedMetadata = resourceType ? { ...metadata, resourceType } : metadata;
+        super(true, message, userMessage, data, enhancedMetadata);
     }
 
     /**

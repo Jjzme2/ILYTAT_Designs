@@ -23,9 +23,16 @@ const requestMiddleware = (req, res, next) => {
 
     // Enhance response object with standardized methods
     res.sendSuccess = function({ data, message }) {
+        // Determine resource type based on request and response context
+        const resourceType = determineResourceType(req, data);
+        
+        // Ensure data is never null
+        const responseData = data === null ? {} : data;
+        
         return res.json(APIResponse.success({
-            data,
+            data: responseData,
             message,
+            resourceType,
             requestId: req.requestId
         }));
     };
@@ -55,6 +62,45 @@ const requestMiddleware = (req, res, next) => {
 
     next();
 };
+
+/**
+ * Helper function to determine the resource type based on the request and data
+ * This helps the response formatter know whether to default to an array or object
+ * 
+ * @param {Object} req - Express request object
+ * @param {any} data - Response data
+ * @returns {string} Resource type ('collection' or 'single')
+ */
+function determineResourceType(req, data) {
+    // If data is already an array, it's a collection
+    if (Array.isArray(data)) {
+        return 'collection';
+    }
+    
+    // Check the URL path - endpoints with plural resources typically return collections
+    const pathSegments = req.path.split('/').filter(Boolean);
+    const lastSegment = pathSegments[pathSegments.length - 1];
+    
+    // Check the HTTP method - GET requests without IDs often return collections
+    const isGetAll = req.method === 'GET' && !req.params.id && 
+                    (!lastSegment || !lastSegment.match(/^[0-9a-fA-F]{24}$/));
+    
+    // Common collection endpoint patterns
+    const collectionPatterns = [
+        /s$/, // plural endpoints (users, products)
+        /list/i, 
+        /all/i,
+        /search/i,
+        /find/i,
+        /query/i
+    ];
+    
+    const isCollectionEndpoint = collectionPatterns.some(pattern => 
+        pattern.test(lastSegment) || pattern.test(req.path)
+    );
+    
+    return (isGetAll || isCollectionEndpoint) ? 'collection' : 'single';
+}
 
 /**
  * Global error handling middleware

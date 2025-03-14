@@ -85,7 +85,7 @@
         <div class="about-content">
           <h2>Our Story</h2>
           <p>At ILYTAT Designs, we believe that every item tells a story. Our passion is creating unique, high-quality products that bring joy and personality to your everyday life.</p>
-          <p>Started in 2020, our small team of dedicated designers works tirelessly to craft items that stand out from the crowd. We take pride in our attention to detail and commitment to quality.</p>
+          <p>Started in 2025, our small team of dedicated designers works tirelessly to craft items that stand out from the crowd. We take pride in our attention to detail and commitment to quality.</p>
           <p>Every purchase supports our mission to create sustainable, beautiful designs while providing exceptional customer service.</p>
         </div>
       </div>

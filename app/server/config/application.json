@@ -1,0 +1,83 @@
+{
+  "application": {
+    "name": "ILYTAT Designs",
+    "version": "1.0.0",
+    "environment": "development",
+    "description": "Custom designs for everyone. Trendy, stylish, and unique items for your everyday life.",
+    "lastUpdated": "2025-03-14"
+  },
+  "company": {
+    "name": "ILYTAT LLC",
+    "website": "https://www.ILYTAT.com",
+    "supportEmail": "support@ilytat.com",
+    "commonEmail": "info@ilytat.com",
+    "phone": "7086271854",
+    "address": {
+      "street": "2045 W Grand Ave STE B",
+      "unit": "PMB 820188",
+      "city": "Chicago",
+      "state": "IL",
+      "zip": "60612",
+      "country": "USA"
+    },
+    "tagline": "Unique. Creative. Yours."
+  },
+  "brand": {
+    "colors": {
+      "primary": "#007bff",
+      "secondary": "#6c757d",
+      "accent": "#ff9900",
+      "light": "#f8f9fa",
+      "dark": "#343a40"
+    },
+    "fonts": {
+      "heading": "Montserrat, sans-serif",
+      "body": "Open Sans, sans-serif"
+    },
+    "logo": {
+      "main": "/images/logo.png",
+      "favicon": "/favicon.ico",
+      "alt": "ILYTAT Designs Logo"
+    }
+  },
+  "social": {
+    "tiktok": "https://www.tiktok.com/@Positive_Echoes",
+    "facebook": "https://www.facebook.com/people/Ilytat-Designs/61565010253579",
+    "instagram": "",
+    "twitter": "",
+    "pinterest": "",
+    "youtube": ""
+  },
+  "contact": {
+    "hours": "Monday-Friday, 9am-5pm CST",
+    "supportResponseTime": "24-48 hours",
+    "additionalNotes": "For urgent inquiries, please call our phone number."
+  },
+  "features": {
+    "shop": {
+      "enabled": true,
+      "defaultCurrency": "USD",
+      "defaultLanguage": "en-US",
+      "itemsPerPage": 12
+    },
+    "cart": {
+      "abandonedCartTimeout": 72, 
+      "guestCheckoutEnabled": true
+    },
+    "authentication": {
+      "sessionTimeout": 60,
+      "requireEmailVerification": true
+    }
+  },
+  "integration": {
+    "printify": {
+      "enabled": true,
+      "apiEndpoint": "https://api.printify.com/v1"
+    }
+  },
+  "seo": {
+    "defaultTitle": "ILYTAT Designs | Custom Apparel and Accessories",
+    "defaultDescription": "Unique custom designs for t-shirts, hoodies, mugs, and more. Express yourself with our trendy, stylish, and unique items.",
+    "defaultKeywords": "custom designs, apparel, accessories, t-shirts, hoodies, mugs"
+  }
+}

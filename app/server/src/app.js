@@ -9,6 +9,10 @@ const { errorHandler } = require('./utils/errorHandler');
 const logger = require('./utils/logger');
 const routes = require('./routes');
 const securityConfig = require('./config/security');
+// Custom middleware to ensure Printify domains are allowed in CSP
+const printifyCSPMiddleware = require('./middleware/printifyCSPMiddleware');
+// Add request timing middleware to track performance metrics
+const requestTimingMiddleware = require('./middleware/requestTimingMiddleware');
 // Use enhanced middleware that integrates with our response system
 const {
     correlationMiddleware,
@@ -25,6 +29,9 @@ const app = express();
 // Apply correlation ID middleware (must be first to capture all requests)
 app.use(correlationMiddleware);
 
+// Apply request timing middleware (early in chain to capture full request timing)
+app.use(requestTimingMiddleware);
+
 // Debug middleware for non-production environments
 if (process.env.NODE_ENV !== 'production') {
     app.use(debugMiddleware);
@@ -40,6 +47,9 @@ app.use(performanceLogger(1000)); // Log requests slower than 1 second
 
 // CORS configuration
 app.use(cors(securityConfig.cors));
+
+// Apply custom Printify CSP middleware BEFORE Helmet
+app.use(printifyCSPMiddleware);
 
 // Security middleware
 app.use(helmet(securityConfig.helmet));

@@ -4,8 +4,8 @@
       <div class="header-container">
         <div class="brand">
           <router-link to="/" class="brand-link">
-            <img src="/images/logo.png" alt="ILYTAT Designs" class="logo" />
-            <span class="brand-name">{{ contactStore.companyName || 'ILYTAT Designs' }}</span>
+            <img src="/images/logo.png" :alt="configStore.application.name || 'Custom Brand'" class="logo" />
+            <span class="brand-name">{{ configStore.application.name || 'Custom Brand' }}</span>
           </router-link>
         </div>
         
@@ -23,7 +23,7 @@
             aria-label="View Cart"
             @click="goToCart"
           >
-            <i class="fas fa-shopping-cart"></i>
+            <font-awesome-icon :icon="['fas', 'shopping-cart']" />
             <span class="cart-count" v-if="cartItemCount > 0">{{ cartItemCount }}</span>
           </button>
           
@@ -32,8 +32,7 @@
             aria-label="Toggle Menu"
             @click="toggleMobileMenu"
           >
-            <i class="fas fa-bars" v-if="!isMobileMenuOpen"></i>
-            <i class="fas fa-times" v-else></i>
+            <font-awesome-icon :icon="['fas', isMobileMenuOpen ? 'times' : 'bars']" />
           </button>
         </div>
       </div>
@@ -46,8 +45,8 @@
     <footer class="footer">
       <div class="footer-container">
         <div class="footer-section">
-          <h3 class="footer-title">{{ contactStore.companyName || 'ILYTAT Designs' }}</h3>
-          <p class="footer-text">{{ contactStore.companyTagline || 'Custom designs for everyone. Trendy, stylish, and unique items for your everyday life.' }}</p>
+          <h3 class="footer-title">{{ configStore.application.name || 'ILYTAT Designs' }}</h3>
+          <p class="footer-text">{{ configStore.company.tagline || 'Custom designs for everyone. Trendy, stylish, and unique items for your everyday life.' }}</p>
         </div>
         
         <div class="footer-section">
@@ -63,21 +62,21 @@
           <h3 class="footer-title">Contact</h3>
           <ul class="footer-contact">
             <li>
-              <i class="fas fa-envelope"></i>
-              <a :href="`mailto:${contactStore.companyCommonEmail || 'info@ilytatdesigns.com'}`" class="footer-link">
-                {{ contactStore.companyCommonEmail || 'info@ilytatdesigns.com' }}
+              <font-awesome-icon :icon="['fas', 'envelope']" />
+              <a :href="`mailto:${configStore.company.commonEmail || 'info@ilytatdesigns.com'}`" class="footer-link">
+                {{ configStore.company.commonEmail || 'info@ilytatdesigns.com' }}
               </a>
             </li>
             <li>
-              <i class="fas fa-phone"></i>
-              <a :href="`tel:${contactStore.companyPhone || '+1234567890'}`" class="footer-link">
-                {{ contactStore.getFormattedPhone || '(123) 456-7890' }}
+              <font-awesome-icon :icon="['fas', 'phone']" />
+              <a :href="`tel:${configStore.company.phone || '+1234567890'}`" class="footer-link">
+                {{ configStore.getFormattedPhone || '(123) 456-7890' }}
               </a>
             </li>
-            <li v-if="contactStore.companyAddressStreet">
-              <i class="fas fa-map-marker-alt"></i>
+            <li v-if="configStore.company.address.street">
+              <font-awesome-icon :icon="['fas', 'map-marker-alt']" />
               <span class="footer-text address">
-                {{ contactStore.getFormattedAddress }}
+                {{ configStore.getFormattedAddress }}
               </span>
             </li>
           </ul>
@@ -86,28 +85,30 @@
         <div class="footer-section">
           <h3 class="footer-title">Stay Connected</h3>
           <div class="social-links">
-            <a v-if="contactStore.socialsFacebook" :href="contactStore.socialsFacebook" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="Facebook">
-              <i class="fab fa-facebook-f"></i>
+            <a :href="configStore.social.facebook || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.facebook }" aria-label="Facebook">
+              <font-awesome-icon :icon="['fab', 'facebook-f']" />
             </a>
-            <a v-if="contactStore.socialsTikTok" :href="contactStore.socialsTikTok" target="_blank" rel="noopener noreferrer" class="social-link" aria-label="TikTok">
-              <i class="fab fa-tiktok"></i>
+            <a :href="configStore.social.tiktok || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.tiktok }" aria-label="TikTok">
+              <font-awesome-icon :icon="['fab', 'tiktok']" />
             </a>
-            <!-- Keeping these as placeholders but hidden until they're added to the contact store -->
-            <a v-if="false" href="#" class="social-link" aria-label="Instagram">
-              <i class="fab fa-instagram"></i>
+            <a :href="configStore.social.instagram || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.instagram }" aria-label="Instagram">
+              <font-awesome-icon :icon="['fab', 'instagram']" />
             </a>
-            <a v-if="false" href="#" class="social-link" aria-label="Twitter">
-              <i class="fab fa-twitter"></i>
+            <a :href="configStore.social.twitter || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.twitter }" aria-label="Twitter">
+              <font-awesome-icon :icon="['fab', 'twitter']" />
             </a>
-            <a v-if="false" href="#" class="social-link" aria-label="Pinterest">
-              <i class="fab fa-pinterest-p"></i>
+            <a :href="configStore.social.pinterest || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.pinterest }" aria-label="Pinterest">
+              <font-awesome-icon :icon="['fab', 'pinterest-p']" />
+            </a>
+            <a :href="configStore.social.youtube || '#'" target="_blank" rel="noopener noreferrer" class="social-link" :class="{ 'inactive-social': !configStore.social.youtube }" aria-label="YouTube">
+              <font-awesome-icon :icon="['fab', 'youtube']" />
             </a>
           </div>
         </div>
       </div>
       
       <div class="copyright">
-        <p>&copy; {{ currentYear }} {{ contactStore.companyName || 'ILYTAT LLC' }}. All rights reserved.</p>
+        <p>&copy; {{ currentYear }} {{ configStore.company.name || 'Company Name' }}. All rights reserved.</p>
       </div>
     </footer>
   </div>
@@ -117,15 +118,19 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePrintifyStore } from '@/stores/printify'
-import { useContactStore } from '@/stores/contactStore'
+import { useConfigStore } from '@/stores/configStore'
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 export default {
   name: 'PublicLayout',
+  components: {
+    FontAwesomeIcon
+  },
   
   setup() {
     const router = useRouter()
     const printifyStore = usePrintifyStore()
-    const contactStore = useContactStore()
+    const configStore = useConfigStore()
     
     // Mobile menu state
     const isMobileMenuOpen = ref(false)
@@ -172,11 +177,11 @@ export default {
       // Load cart from localStorage
       printifyStore.loadCart()
       
-      // Fetch contact information
+      // Fetch configuration information
       try {
-        await contactStore.fetchContactInfo()
+        await configStore.fetchConfig()
       } catch (error) {
-        console.error('Failed to load contact information:', error)
+        console.error('Failed to load configuration information:', error)
       }
       
       // Add click outside listener
@@ -192,7 +197,7 @@ export default {
       isMobileMenuOpen,
       currentYear,
       cartItemCount,
-      contactStore,
+      configStore,
       toggleMobileMenu,
       goToCart
     }
@@ -392,33 +397,35 @@ export default {
 .social-links {
   display: flex;
   gap: 1rem;
+  margin-top: 1rem;
 }
 
 .social-link {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 2.5rem;
+  height: 2.5rem;
   border-radius: 50%;
-  background-color: rgba(255, 255, 255, 0.1);
-  color: #ecf0f1;
-  transition: background-color 0.2s, color 0.2s;
+  background-color: #333;
+  color: #fff;
+  transition: all 0.3s ease;
 }
 
 .social-link:hover {
-  background-color: #3498db;
-  color: #ffffff;
+  background-color: var(--color-primary);
+  transform: translateY(-3px);
 }
 
-.copyright {
-  max-width: 1200px;
-  margin: 2rem auto 0;
-  padding-top: 1rem;
-  text-align: center;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  font-size: 0.9rem;
-  color: #bdc3c7;
+.inactive-social {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.inactive-social:hover {
+  background-color: #333;
+  transform: none;
+  opacity: 0.6;
 }
 
 /* Responsive Styles */

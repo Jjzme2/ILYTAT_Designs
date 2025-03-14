@@ -173,17 +173,119 @@ export const usePrintifyStore = defineStore('printify', {
       
       this.loading.selectedProduct = true
       this.error.selectedProduct = null
+      this.selectedProduct = null // Reset selected product before fetching
       
       try {
-        const { data } = await axios.get(`/api/printify/products/${productId}`)
-        this.selectedProduct = data.data
-        return this.selectedProduct
+        console.log(`Fetching product with ID: ${productId}`)
+        const response = await axios.get(`/api/printify/products/${productId}`)
+        
+        // Check if the API returns success with valid data
+        if (response.data?.success === true) {
+          // Check if the response has error status or notFound flag
+          if (response.data.meta?.error === true || response.data.meta?.notFound === true) {
+            console.warn(`API returned ${response.data.meta?.notFound ? 'notFound' : 'error'} status for product: ${productId}`)
+            const errorMessage = response.data.message || (response.data.meta?.notFound ? 'Product not found' : 'Error retrieving product')
+            
+            // Create a fallback product with information from the response message
+            this.selectedProduct = this._createFallbackProduct(productId, errorMessage)
+            
+            // Set a specific error that the UI can handle gracefully
+            this.error.selectedProduct = response.data.meta?.notFound ? 'product_not_found' : 'api_error'
+            return this.selectedProduct
+          }
+          
+          // First check if response.data.data exists and is an object
+          if (response.data.data && typeof response.data.data === 'object') {
+            // Case 1: Normal successful response with data object
+            
+            // Additional check - does the data actually have meaningful product information?
+            if (response.data.data.id) {
+              this.selectedProduct = response.data.data
+              console.log("Successfully loaded product:", this.selectedProduct.title)
+              return this.selectedProduct
+            } else {
+              // The data object exists but has no meaningful content
+              console.warn('API returned empty product object for ID:', productId)
+              
+              // Create a fallback product object for UI rendering
+              this.selectedProduct = this._createFallbackProduct(productId, 'Product data is incomplete')
+              return this.selectedProduct
+            }
+          } else if (response.data.data && Array.isArray(response.data.data) && response.data.data.length === 0) {
+            // Case 2: API returned empty array
+            console.warn('API returned empty array for product ID:', productId)
+            this.selectedProduct = this._createFallbackProduct(productId, 'Product not found')
+            return this.selectedProduct
+          } else if (response.data.data && Object.keys(response.data.data).length === 0) {
+            // Case 3: Server returned success with empty object
+            // This matches our new server-side response for not-found products
+            console.warn('API returned empty object for product ID:', productId)
+            
+            // Create a fallback product with information from the response message
+            const message = response.data.message || 'Product not available'
+            this.selectedProduct = this._createFallbackProduct(productId, message)
+            
+            // Set a specific error that the UI can handle gracefully
+            this.error.selectedProduct = 'product_not_found'
+            return this.selectedProduct
+          } else {
+            // Case 4: API returned success but with null/undefined data
+            console.warn('API returned success but with null/undefined data for product:', productId)
+            
+            // Check if there might be product info elsewhere in the response
+            if (response.data.product) {
+              this.selectedProduct = response.data.product
+              return this.selectedProduct
+            } else {
+              // Create a fallback product object for UI rendering
+              this.selectedProduct = this._createFallbackProduct(productId, 'Product data not available')
+              
+              // Set an error flag but don't throw, allowing the UI to render a fallback state
+              this.error.selectedProduct = 'data_unavailable'
+              return this.selectedProduct
+            }
+          }
+        } else {
+          // Response was not a success
+          console.error('API returned error response:', response.data)
+          const message = response.data?.message || 'Failed to fetch product'
+          
+          // Create a fallback product but mark as error
+          this.selectedProduct = this._createFallbackProduct(productId, message)
+          this.error.selectedProduct = message
+          return this.selectedProduct
+        }
       } catch (error) {
-        this.error.selectedProduct = error.response?.data?.message || 'Failed to fetch product'
+        // Handle network errors or other exceptions
+        const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch product'
         console.error(`Error fetching product ${productId}:`, error)
-        throw error
+        
+        // Create a fallback product for error state
+        this.selectedProduct = this._createFallbackProduct(productId, errorMessage)
+        this.error.selectedProduct = errorMessage
+        
+        // Log the error but don't throw so UI can show fallback state
+        console.error('Error loading product data:', error)
+        return this.selectedProduct
       } finally {
         this.loading.selectedProduct = false
+      }
+    },
+    
+    /**
+     * Create a fallback product object for UI rendering when actual data is unavailable
+     * @private
+     */
+    _createFallbackProduct(productId, reason) {
+      return {
+        id: productId,
+        title: 'Product Unavailable',
+        description: `This product cannot be displayed at this time. ${reason}`,
+        images: [],
+        variants: [],
+        priceRange: 'N/A',
+        _fallback: true,
+        _reason: reason
       }
     },
     

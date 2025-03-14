@@ -207,16 +207,108 @@ class PrintifyService {
             this._validateParameter('productId', productId);
             this.logger.info(`Fetching product ${productId} from shop ${shopId}`);
             
+            // Add detailed debug logging for the request
+            this.logger.debug(`Making request to Printify API: GET /shops/${shopId}/products/${productId}.json`, {
+                baseURL: this.baseURL,
+                fullURL: `${this.baseURL}/shops/${shopId}/products/${productId}.json`,
+                hasApiKey: !!this.apiKey,
+                apiKeyLength: this.apiKey ? this.apiKey.length : 0
+            });
+            
             const response = await this._makeRequestWithRetry(
                 () => this.client.get(`/shops/${shopId}/products/${productId}.json`),
                 'getProduct'
             );
             
-            this.logger.info(`Successfully retrieved product ${productId}`);
-            return response.data;
+            // Enhanced logging to debug response structure
+            this.logger.debug('Raw Printify API response for product', {
+                productId,
+                shopId,
+                status: response.status,
+                statusText: response.statusText,
+                hasData: !!response.data,
+                dataType: typeof response.data,
+                dataKeys: typeof response.data === 'object' && response.data !== null 
+                    ? Object.keys(response.data)
+                    : [],
+                // Log a snippet of the raw response data for debugging
+                rawDataPreview: typeof response.data === 'object' && response.data !== null
+                    ? JSON.stringify(response.data).substring(0, 500)
+                    : String(response.data).substring(0, 100)
+            });
+            
+            // Validate and sanitize the response data
+            if (!response.data) {
+                this.logger.warn(`Received null or undefined response data for product ${productId}`, {
+                    shopId,
+                    productId
+                });
+                // Return an empty object instead of null
+                return {
+                    id: productId,
+                    title: 'Product Not Available',
+                    description: '',
+                    visible: false,
+                    images: [],
+                    variants: [],
+                    _error: 'Product data not available from Printify API'
+                };
+            }
+            
+            // Check if response.data has the expected product structure
+            if (typeof response.data !== 'object') {
+                this.logger.warn(`Unexpected response format for product ${productId} - not an object`, {
+                    shopId,
+                    productId,
+                    actualType: typeof response.data
+                });
+                return {
+                    id: productId,
+                    title: 'Product Format Error',
+                    description: '',
+                    visible: false,
+                    images: [],
+                    variants: [],
+                    _error: 'Product data format error from Printify API'
+                };
+            }
+            
+            // Ensure all critical properties exist
+            const sanitizedProduct = {
+                id: response.data.id || productId,
+                title: response.data.title || 'Untitled Product',
+                description: response.data.description || '',
+                visible: response.data.visible !== false, // Default to true if not specified
+                images: Array.isArray(response.data.images) ? response.data.images : [],
+                variants: Array.isArray(response.data.variants) ? response.data.variants : [],
+                options: Array.isArray(response.data.options) ? response.data.options : [],
+                tags: Array.isArray(response.data.tags) ? response.data.tags : [],
+                created_at: response.data.created_at || new Date().toISOString(),
+                updated_at: response.data.updated_at || response.data.created_at || new Date().toISOString(),
+                blueprint_id: response.data.blueprint_id || null,
+                print_provider_id: response.data.print_provider_id || null,
+                metadata: response.data.metadata || {}
+            };
+            
+            this.logger.info(`Successfully retrieved and sanitized product ${productId}`);
+            return sanitizedProduct;
         } catch (error) {
-            this.logger.error(`Error fetching product ${productId} from shop ${shopId}`, { error: error.message });
-            throw this._handleError(error, 'getProduct');
+            this.logger.error(`Error fetching product ${productId} from shop ${shopId}`, { 
+                error: error.message,
+                stack: error.stack
+            });
+            
+            // Instead of throwing, return a default object for error cases
+            // This helps the UI handle errors more gracefully
+            return {
+                id: productId,
+                title: 'Error Loading Product',
+                description: 'This product could not be loaded at this time.',
+                visible: false,
+                images: [],
+                variants: [],
+                _error: error.message || 'Unknown error fetching product'
+            };
         }
     }
 
