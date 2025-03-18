@@ -23,6 +23,7 @@ const ROUTES = {
   PRODUCT_DETAIL: '/products/:productId',
   CATEGORIES: '/categories',
   SEARCH: '/search',
+  UPCOMING_PRODUCTS: '/upcoming-products',
   
   // Customer routes (requires authentication)
   CUSTOMER_ORDERS: '/customer/orders',
@@ -49,7 +50,7 @@ const ROUTES = {
  * Register Printify API routes with role-based permissions
  * @param {Express.Router} router - Express router instance
  */
-const printifyRoutes = (router) => {
+function printifyRoutes(router) {
   // === PUBLIC ROUTES (No Authentication Required) ===
   
   // Get all published products
@@ -83,6 +84,9 @@ const printifyRoutes = (router) => {
     authenticateToken,
     paymentController.createCheckoutSession
   );
+  
+  // Get upcoming products (preview/coming soon) - Authentication required
+  router.get(ROUTES.UPCOMING_PRODUCTS, authenticateToken, printifyController.getUpcomingProducts);
   
   // Get customer's own orders
   router.get(

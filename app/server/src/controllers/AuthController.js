@@ -146,11 +146,37 @@ class AuthController extends BaseController {
           });
         }
         
-        // For other errors, let the error handler manage it
-        throw error;
+        // For other errors, log the detailed error
+        this.logger.error('Login error:', {
+          error: error.message,
+          stack: error.stack,
+          details: error.details || {}
+        });
+        
+        // Enhanced error response handling - convert error object to string message
+        const errorMessage = error ? (typeof error === 'object' 
+          ? (error.message || 'Authentication failed. Please check your credentials.') 
+          : error.toString()) : 'An unexpected error occurred';
+          
+        return res.sendError(
+          null,
+          errorMessage,
+          error ? (error.statusCode || 401) : 500
+        );
       }
     } catch (error) {
-      next(error);
+      // Log the unexpected error
+      this.logger.error('Unexpected error in login controller:', {
+        error: error.message,
+        stack: error.stack
+      });
+      
+      // Format error properly to avoid [object Object] in response
+      const errorMessage = error ? (typeof error === 'object'
+        ? (error.message || 'An unexpected error occurred')
+        : error.toString()) : 'An unexpected error occurred';
+        
+      next({ ...error, message: errorMessage });
     }
   };
 

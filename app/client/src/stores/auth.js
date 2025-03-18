@@ -113,6 +113,9 @@ export const useAuthStore = defineStore('auth', {
         }
         return response.data;
       } catch (error) {
+        // Enhanced error handling with better null checks
+        console.error('Login error:', error);
+        
         // If this is a verification error, extract the detailed information
         if (error.response?.status === 403 && 
             error.response?.data?.error?.details?.requiresVerification) {
@@ -127,7 +130,7 @@ export const useAuthStore = defineStore('auth', {
                 details: {
                   requiresVerification: true,
                   email: error.response.data.error.details.email,
-                  emailInfo: error.response.data.error.actions.find(a => a.type === 'check_dev_email') 
+                  emailInfo: error.response.data.error.actions?.find(a => a.type === 'check_dev_email') 
                     ? { instructions: error.response.data.error.actions.find(a => a.type === 'check_dev_email').message } 
                     : null
                 }
@@ -135,6 +138,24 @@ export const useAuthStore = defineStore('auth', {
             }
           };
         }
+        
+        // Safe error handling for other error types
+        // This addresses the "Cannot destructure property 'error' of 'object null'" error
+        if (error.response?.data === null) {
+          // If response.data is null, create a generic error object
+          throw {
+            ...error,
+            response: {
+              ...error.response,
+              data: {
+                success: false,
+                message: error.message || 'Login failed',
+                error: error.message || 'Authentication error'
+              }
+            }
+          };
+        }
+        
         throw error;
       } finally {
         this.loading = false;

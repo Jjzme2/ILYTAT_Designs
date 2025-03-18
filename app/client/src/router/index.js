@@ -15,6 +15,7 @@ const ResetPasswordView = () => import('@/views/auth/ResetPasswordView.vue')
 // Main Views
 const DashboardView = () => import('@/views/DashboardView.vue')
 const ProductsView = () => import('@/views/printify/ProductsView.vue')
+const UpcomingProductsView = () => import('@/views/printify/UpcomingProductsView.vue')
 const OrdersView = () => import('@/views/printify/OrdersView.vue')
 const ProfileView = () => import('@/views/profile/ProfileView.vue')
 
@@ -99,6 +100,15 @@ const routes = [
         name: 'admin-products',
         component: ProductsView,
         meta: { title: 'Products Management' }
+      },
+      {
+        path: 'upcoming-products',
+        name: 'upcoming-products',
+        component: UpcomingProductsView,
+        meta: { 
+          title: 'Upcoming Products',
+          requiresAuth: true 
+        }
       },
       {
         path: 'orders',

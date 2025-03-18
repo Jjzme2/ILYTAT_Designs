@@ -19,6 +19,7 @@ const configRoutes = require('./config');
 const auditRoutes = require('./audit');
 const systemRoutes = require('./system');
 const featuredProductRoutes = require('./featuredProducts');
+const documentationRoutes = require('../documentationRoutes');
 
 /**
  * Route Registration
@@ -43,6 +44,9 @@ router.use('/roles', rolesRouter);
 const docsRouter = express.Router();
 docRoutes(docsRouter);
 router.use('/documents', docsRouter);
+
+// File-based Documentation Routes
+router.use('/documentation', documentationRoutes);
 
 const printifyRouter = express.Router();
 printifyRoutes(printifyRouter);

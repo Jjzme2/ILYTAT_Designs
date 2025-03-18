@@ -19,7 +19,7 @@ class PrintifyController {
      */
     getPublicProducts = catchAsync(async (req, res) => {
         const startTime = Date.now();
-        const { featured, bestSelling } = req.query;
+        const { featured, bestSelling, includeHidden } = req.query;
         
         // Log request with query parameters
         this.logger.info(
@@ -28,7 +28,8 @@ class PrintifyController {
                 data: {
                     shopId: process.env.DEFAULT_PRINTIFY_SHOP_ID,
                     featured: featured === 'true',
-                    bestSelling: bestSelling === 'true'
+                    bestSelling: bestSelling === 'true',
+                    includeHidden: includeHidden === 'true'
                 }
             }).withRequestDetails(req)
         );
@@ -79,8 +80,10 @@ class PrintifyController {
             );
         }
         
-        // Printify API uses 'visible' field to indicate published status, not 'is_published'
-        const publishedProducts = products.filter(product => product.visible === true);
+        // CRITICAL FIX: Strictly filter by visible flag, no exceptions unless explicitly requested
+        const publishedProducts = includeHidden === 'true' 
+            ? products 
+            : products.filter(product => product.visible === true);
 
         // Add debugging to understand why no products are considered published
         if (products.length > 0 && publishedProducts.length === 0) {
@@ -102,33 +105,9 @@ class PrintifyController {
             });
         }
 
+        // Remove fallback to alternative fields - we want strict control over visibility
         if (!publishedProducts || publishedProducts.length === 0) {
-            // Try alternative fields for publication status
-            this.logger.info('No products found with visible=true, trying alternative fields');
-            
-            // Check for different possible fields that might indicate publication status
-            const alternativePublishedProducts = products.filter(product => 
-                product.visible === true || 
-                product.published === true || 
-                product.status === 'published' ||
-                product.publish_status === 'published'
-            );
-            
-            if (alternativePublishedProducts.length > 0) {
-                this.logger.info(`Found ${alternativePublishedProducts.length} products using alternative publication fields`);
-                
-                // Use these products instead
-                return this._formatAndReturnProducts(alternativePublishedProducts, res, startTime);
-            }
-            
-            // If still no products found by any method, you might want to consider returning all products
-            // if your business logic permits showing unpublished products
-            if (process.env.SHOW_ALL_PRINTIFY_PRODUCTS === 'true') {
-                this.logger.info(`No published products found, but SHOW_ALL_PRINTIFY_PRODUCTS is enabled. Returning all ${products.length} products.`);
-                return this._formatAndReturnProducts(products, res, startTime);
-            }
-            
-            this.logger.info('No published products found with any known publication field', { shopId });
+            this.logger.info('No published products found with visible=true', { shopId });
             // Instead of throwing an error, return empty array with a message
             return res.sendSuccess(
                 [], 
@@ -337,6 +316,7 @@ class PrintifyController {
     getPublicProduct = catchAsync(async (req, res) => {
         const startTime = Date.now();
         const { productId } = req.params;
+        const { allowHidden } = req.query;
         const shopId = process.env.DEFAULT_PRINTIFY_SHOP_ID;
         
         // Log request
@@ -345,7 +325,8 @@ class PrintifyController {
                 message: 'Fetching single public product',
                 data: {
                     shopId,
-                    productId
+                    productId,
+                    allowHidden: allowHidden === 'true'
                 }
             }).withRequestDetails(req)
         );
@@ -379,22 +360,23 @@ class PrintifyController {
             
             // Check for error indicator from printifyService
             if (product._error) {
-                this.logger.warn(`Error from printifyService for product ${productId}: ${product._error}`);
-                return res.sendSuccess(
-                    {}, // Empty object instead of null
-                    product._error || 'Error retrieving product', 
-                    500
+                this.logger.error(`Error from printifyService: ${product._error}`, {
+                    errorDetails: product
+                });
+                return res.sendError(
+                    null,
+                    product._error, 
+                    product._statusCode || 500
                 );
             }
-    
-            // In some cases, the product might exist but not be visible
-            // For public endpoints, we should only show visible products
-            if (product.visible === false) {
-                this.logger.info(`Product ${productId} exists but is not visible`);
+            
+            // NEW: Check if product is not visible and hidden products are not allowed
+            if (!product.visible && allowHidden !== 'true') {
+                this.logger.warn(`Product ${productId} is not visible and hidden viewing is not allowed`);
                 return res.sendSuccess(
-                    {}, // Empty object instead of null
-                    'Product not available', 
-                    404
+                    {}, 
+                    'Product not available for viewing', 
+                    403
                 );
             }
     
@@ -1098,6 +1080,136 @@ class PrintifyController {
             200
         );
     });
+
+    /**
+     * Get upcoming products (products marked as not visible)
+     * @route GET /api/printify/upcoming-products
+     * @auth Required - Any authenticated user can access
+     */
+    getUpcomingProducts = catchAsync(async (req, res) => {
+        const startTime = Date.now();
+        
+        // Log request info with user data from JWT token
+        this.logger.info(
+            this.logger.response.business({
+                message: 'Fetching upcoming products (preview)',
+                data: {
+                    shopId: process.env.DEFAULT_PRINTIFY_SHOP_ID,
+                    userId: req.user?.id || 'unknown'
+                }
+            }).withRequestDetails(req)
+        );
+        
+        // Get configured default shop ID from environment or config
+        const shopId = process.env.DEFAULT_PRINTIFY_SHOP_ID;
+        
+        // Get all products
+        const products = await printifyService.getProducts(shopId);
+        
+        // Defensive check - ensure products is an array
+        if (!Array.isArray(products)) {
+            this.logger.warn(`Products returned from API is not an array: ${typeof products}`);
+            return res.sendSuccess([], 'No upcoming products available');
+        }
+        
+        // Ensure each product has the expected structure before filtering
+        const validProducts = products.filter(product => product && typeof product === 'object');
+        
+        // Filter for products marked as not visible
+        const upcomingProducts = validProducts.filter(product => product.visible === false);
+        
+        if (upcomingProducts.length === 0) {
+            return res.sendSuccess([], 'No upcoming products found');
+        }
+        
+        // Format and return the upcoming products
+        const formattedProducts = upcomingProducts.map(product => this._formatProduct(product));
+        
+        this.logger.info(`Found ${formattedProducts.length} upcoming products`);
+        const responseTime = Date.now() - startTime;
+        
+        return res.sendSuccess(
+            formattedProducts,
+            'Upcoming products retrieved successfully',
+            200,
+            { responseTime: `${responseTime}ms` }
+        );
+    });
+
+    _formatProduct(product) {
+        // Defensive check - if product is null or not an object, return an empty product
+        if (!product || typeof product !== 'object') {
+            this.logger.warn('Attempted to format null or invalid product');
+            return {
+                id: 'unknown',
+                title: 'Unknown Product',
+                description: 'Product information unavailable',
+                status: 'unavailable',
+                images: [],
+                variants: []
+            };
+        }
+        
+        // Process images to ensure we have valid URLs
+        const processedImages = Array.isArray(product.images) ? product.images.map(image => ({
+            src: image.src,
+            position: image.position || 'front',
+            isDefault: image.isDefault || image.is_default || false,
+            variantIds: image.variantIds || image.variant_ids || []
+        })) : [];
+
+        // Process variants and convert prices from cents to dollars
+        const processedVariants = Array.isArray(product.variants) ? product.variants.map(variant => {
+            // Check if price is already formatted as a string with a decimal point
+            const priceAsFloat = typeof variant.price === 'string' && variant.price.includes('.')
+                ? parseFloat(variant.price)
+                : (variant.price / 100);
+
+            return {
+                id: variant.id,
+                title: variant.title,
+                price: priceAsFloat.toFixed(2),
+                originalPrice: variant.originalPrice || variant.price, // Keep the original price in cents for reference
+                sku: variant.sku,
+                is_available: variant.is_available || true,
+                is_enabled: variant.is_enabled || true
+            };
+        }) : [];
+
+        // Calculate price range if we have variants
+        let priceRange = null;
+        // First check if product already has a priceRange property
+        if (product.priceRange) {
+            priceRange = product.priceRange;
+        } else if (processedVariants.length > 0) {
+            const prices = processedVariants
+                .filter(v => v.is_enabled !== false)
+                .map(v => parseFloat(v.price));
+            
+            if (prices.length > 0) {
+                const minPrice = Math.min(...prices);
+                const maxPrice = Math.max(...prices);
+                
+                priceRange = minPrice === maxPrice 
+                    ? `$${minPrice.toFixed(2)}` 
+                    : `$${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}`;
+            }
+        }
+
+        // Return the formatted product object
+        return {
+            id: product.id,
+            title: product.title,
+            description: product.description,
+            images: processedImages,
+            variants: processedVariants,
+            priceRange: priceRange, // Add a human-readable price range
+            tags: product.tags || [],
+            created_at: product.created_at,
+            blueprint_id: product.blueprint_id,
+            print_provider_id: product.print_provider_id
+        };
+    }
 }
 
 // Export a singleton instance

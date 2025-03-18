@@ -8,7 +8,9 @@
       </div>
       <div class="navbar__menu">
         <router-link to="/" class="navbar__link">Dashboard</router-link>
-        <router-link to="/printify/shops" class="navbar__link">Shops</router-link>
+        <router-link to="/dashboard/products" class="navbar__link">Products</router-link>
+        <router-link to="/dashboard/upcoming-products" class="navbar__link">Upcoming Products</router-link>
+        <router-link to="/dashboard/orders" class="navbar__link">Orders</router-link>
         <router-link to="/documentation" class="navbar__link">Documentation</router-link>
       </div>
       <div class="navbar__actions">

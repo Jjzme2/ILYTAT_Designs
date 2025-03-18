@@ -13,11 +13,31 @@
           <ul class="nav-links">
             <li><router-link to="/" class="nav-link">Home</router-link></li>
             <li><router-link to="/shop" class="nav-link">Shop</router-link></li>
-            <li><router-link to="/dashboard" class="nav-link admin-link">Admin</router-link></li>
+            <!-- Conditionally show Admin link only for authenticated users -->
+            <li v-if="authStore.isAuthenticated">
+              <router-link to="/dashboard" class="nav-link admin-link">Admin</router-link>
+            </li>
           </ul>
         </nav>
         
         <div class="header-actions">
+          <!-- User authentication links -->
+          <div class="auth-links">
+            <template v-if="authStore.isAuthenticated">
+              <span class="welcome-text" v-if="authStore.user">{{ authStore.user.firstName || 'User' }}</span>
+              <button @click="handleLogout" class="auth-btn logout-btn">
+                <font-awesome-icon :icon="['fas', 'sign-out-alt']" />
+                <span class="btn-text">Logout</span>
+              </button>
+            </template>
+            <template v-else>
+              <router-link to="/auth/login" class="auth-btn login-btn">
+                <font-awesome-icon :icon="['fas', 'sign-in-alt']" />
+                <span class="btn-text">Login</span>
+              </router-link>
+            </template>
+          </div>
+        
           <button 
             class="cart-btn" 
             aria-label="View Cart"
@@ -119,6 +139,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { usePrintifyStore } from '@/stores/printify'
 import { useConfigStore } from '@/stores/configStore'
+import { useAuthStore } from '@/stores/auth'
 import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome'
 
 export default {
@@ -131,6 +152,7 @@ export default {
     const router = useRouter()
     const printifyStore = usePrintifyStore()
     const configStore = useConfigStore()
+    const authStore = useAuthStore()
     
     // Mobile menu state
     const isMobileMenuOpen = ref(false)
@@ -172,6 +194,12 @@ export default {
       router.push({ name: 'cart' })
     }
     
+    // Handle logout
+    const handleLogout = async () => {
+      await authStore.logout()
+      router.push({ name: 'home' })
+    }
+    
     // Load data on component mount
     onMounted(async () => {
       // Load cart from localStorage
@@ -198,8 +226,10 @@ export default {
       currentYear,
       cartItemCount,
       configStore,
+      authStore,
       toggleMobileMenu,
-      goToCart
+      goToCart,
+      handleLogout
     }
   }
 }
@@ -284,6 +314,40 @@ export default {
 .header-actions {
   display: flex;
   align-items: center;
+}
+
+.auth-links {
+  margin-right: 1rem;
+}
+
+.auth-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.auth-btn i {
+  margin-right: 0.5rem;
+}
+
+.logout-btn {
+  color: #e74c3c;
+}
+
+.logout-btn:hover {
+  color: #c0392b;
+}
+
+.login-btn {
+  color: #2ecc71;
+}
+
+.login-btn:hover {
+  color: #27ae60;
 }
 
 .cart-btn {

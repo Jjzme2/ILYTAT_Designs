@@ -15,6 +15,7 @@ export const usePrintifyStore = defineStore('printify', {
     totalProducts: 0,
     products: [], // Admin products
     selectedProduct: null,
+    upcomingProducts: [], // New state property
     
     // Shopping cart
     cart: [],
@@ -32,7 +33,8 @@ export const usePrintifyStore = defineStore('printify', {
       order: false,
       orderHistory: false,
       shops: false,
-      orders: false
+      orders: false,
+      upcomingProducts: false // New loading state
     },
     error: {
       products: null,
@@ -44,7 +46,8 @@ export const usePrintifyStore = defineStore('printify', {
       order: null,
       orderHistory: null,
       shops: null,
-      orders: null
+      orders: null,
+      upcomingProducts: null // New error state
     }
   }),
 
@@ -286,6 +289,56 @@ export const usePrintifyStore = defineStore('printify', {
         priceRange: 'N/A',
         _fallback: true,
         _reason: reason
+      }
+    },
+    
+    // ==== AUTHENTICATED USER ACTIONS (Authentication required) ====
+    
+    /**
+     * Fetch upcoming products (not yet published)
+     * Requires authentication
+     */
+    async fetchUpcomingProducts() {
+      const authStore = useAuthStore();
+      
+      // Check if user is authenticated
+      if (!authStore.isAuthenticated) {
+        this.error.upcomingProducts = 'Authentication required to view upcoming products';
+        return;
+      }
+      
+      this.loading.upcomingProducts = true;
+      this.error.upcomingProducts = null;
+      
+      try {
+        const { data } = await axios.get('/api/printify/upcoming-products');
+        
+        if (data && data.success) {
+          // Store upcoming products in state
+          this.upcomingProducts = data.data;
+        } else {
+          // Handle unsuccessful response
+          this.error.upcomingProducts = 'Failed to load upcoming products';
+          console.error('Failed to load upcoming products:', data);
+        }
+      } catch (error) {
+        // Handle authentication errors specially
+        if (error.response && error.response.status === 401) {
+          this.error.upcomingProducts = 'You must be logged in to view upcoming products';
+          
+          // Redirect to login if authentication error
+          const authStore = useAuthStore();
+          if (!authStore.isAuthenticated) {
+            // Let the router handle the redirect via navigation guard
+            console.warn('Authentication required for upcoming products');
+          }
+        } else {
+          // Handle other errors
+          this.error.upcomingProducts = error.message || 'Error loading upcoming products';
+          console.error('Error fetching upcoming products:', error);
+        }
+      } finally {
+        this.loading.upcomingProducts = false;
       }
     },
     
