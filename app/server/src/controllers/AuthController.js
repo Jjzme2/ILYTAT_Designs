@@ -187,7 +187,7 @@ class AuthController extends BaseController {
     try {
       // Find the user by ID
       const user = await User.findByPk(req.user.id, {
-        attributes: ['id', 'firstName', 'lastName', 'email', 'role']
+        attributes: ['id', 'first_name', 'last_name', 'email', 'role']
       });
 
       // If user not found, throw a not found error
