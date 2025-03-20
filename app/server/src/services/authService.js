@@ -205,8 +205,35 @@ class AuthService {
       verificationExpires,
       isVerified: false,
       lastLoginAt: new Date(),
-      loginAttempts: 0
+      loginAttempts: 0,
     });
+
+    // Assign default 'user' role to the newly created user
+try {
+  const { Role } = require('../models');
+  const userRole = await Role.findOne({ where: { name: 'user' } });
+  
+  if (userRole) {
+    await newUser.addRole(userRole);
+    logger.debug('Assigned default user role', {
+      userId: newUser.id,
+      roleId: userRole.id,
+      roleName: userRole.name
+    });
+  } else {
+    logger.warn('Default user role not found', {
+      userId: newUser.id,
+      email: newUser.email
+    });
+  }
+} catch (error) {
+  logger.error('Failed to assign default user role', {
+    userId: newUser.id,
+    email: newUser.email,
+    error: error.message
+  });
+  // We don't throw here to allow user creation to succeed even if role assignment fails
+}
     
     logger.debug('User created successfully', {
       userId: newUser.id,
