@@ -40,6 +40,58 @@ const getHealthStatus = async (req, res) => {
 };
 
 /**
+ * Get Stripe service status
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} Stripe service status
+ */
+const getStripeStatus = async (req, res) => {
+  try {
+    const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    
+    // Test Stripe connectivity with a simple API call
+    const testCall = await stripe.balance.retrieve();
+    
+    // If we reach here, Stripe API is operational
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: 'operational',
+        details: {
+          balance: {
+            available: testCall.available.length > 0,
+            pending: testCall.pending.length > 0
+          }
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Stripe status check failed:', error);
+    
+    // If Stripe throws an error, determine the type of issue
+    let status = 'error';
+    let message = 'Failed to connect to Stripe';
+    
+    if (error.type === 'StripeAuthenticationError') {
+      status = 'configuration_error';
+      message = 'Stripe API key is invalid';
+    } else if (error.type === 'StripeConnectionError') {
+      status = 'unavailable';
+      message = 'Stripe service is currently unavailable';
+    }
+    
+    return res.status(200).json({
+      success: true,
+      data: {
+        status,
+        message,
+        error: error.message
+      }
+    });
+  }
+};
+
+/**
  * Get health summary for authenticated users
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -406,8 +458,41 @@ const getSystemStats = async (req, res) => {
   }
 };
 
+/**
+ * Get current server time
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @returns {Object} Current server time in various formats
+ */
+const getServerTime = async (req, res) => {
+  try {
+    const now = new Date();
+    
+    const timeData = {
+      iso: now.toISOString(),
+      unix: Math.floor(now.getTime() / 1000),
+      utc: now.toUTCString(),
+      local: now.toString(),
+      timestamp: now.getTime()
+    };
+
+    return res.status(200).json({ 
+      success: true, 
+      data: timeData 
+    });
+  } catch (error) {
+    logger.error('Server time request failed:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: 'Failed to retrieve server time',
+      error: process.env.NODE_ENV === 'production' ? null : error.message
+    });
+  }
+};
+
 module.exports = {
   getHealthStatus,
+  getStripeStatus,
   getHealthSummary,
   getDetailedHealth,
   getPerformanceMetrics,
@@ -415,5 +500,6 @@ module.exports = {
   getLogs,
   getErrorLogs,
   getAccessLogs,
-  getSystemStats
+  getSystemStats,
+  getServerTime
 };

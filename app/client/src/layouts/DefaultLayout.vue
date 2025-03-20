@@ -14,6 +14,7 @@
         <router-link to="/documentation" class="navbar__link">Documentation</router-link>
       </div>
       <div class="navbar__actions">
+        <HealthIndicator />
         <button @click="uiStore.toggleTheme()" class="navbar__theme-toggle">
           {{ uiStore.isDarkMode ? '🌞' : '🌙' }}
         </button>
@@ -33,9 +34,13 @@
 import { useUIStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
-
+import HealthIndicator from '@/components/ui/HealthIndicator.vue'
+  
 export default {
   name: 'DefaultLayout',
+  components: {
+    HealthIndicator
+  },
   setup() {
     const uiStore = useUIStore()
     const authStore = useAuthStore()

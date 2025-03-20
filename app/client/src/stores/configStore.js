@@ -213,91 +213,173 @@ export const useConfigStore = defineStore('config', {
      * @param {Object} data - Configuration data from API
      */
     setConfig(data) {
-      // Application info
+      if (!data) return;
+      
+      // Update application info
       if (data.application) {
-        this.application = { ...this.application, ...data.application };
+        this.application = {
+          ...this.application,
+          ...data.application
+        };
       }
       
-      // Company info
+      // Update company info
       if (data.company) {
-        const company = data.company;
-        
-        // Handle nested address object
-        if (company.address) {
-          this.company.address = { ...this.company.address, ...company.address };
-          // Remove address to avoid duplication in the spread below
-          const { address, ...companyWithoutAddress } = company;
-          this.company = { ...this.company, ...companyWithoutAddress };
-        } else {
-          this.company = { ...this.company, ...company };
-        }
+        this.company = {
+          ...this.company,
+          ...data.company,
+          address: {
+            ...this.company.address,
+            ...(data.company.address || {})
+          }
+        };
       }
       
-      // Brand info
+      // Update brand info
       if (data.brand) {
-        const brand = data.brand;
-        
-        // Handle nested objects
-        if (brand.colors) {
-          this.brand.colors = { ...this.brand.colors, ...brand.colors };
-        }
-        
-        if (brand.fonts) {
-          this.brand.fonts = { ...this.brand.fonts, ...brand.fonts };
-        }
-        
-        if (brand.logo) {
-          this.brand.logo = { ...this.brand.logo, ...brand.logo };
-        }
-
-        // Remove nested objects to avoid duplication
-        const { colors, fonts, logo, ...brandWithoutNested } = brand;
-        this.brand = { ...this.brand, ...brandWithoutNested };
+        this.brand = {
+          ...this.brand,
+          colors: {
+            ...this.brand.colors,
+            ...(data.brand.colors || {})
+          },
+          fonts: {
+            ...this.brand.fonts,
+            ...(data.brand.fonts || {})
+          },
+          logo: {
+            ...this.brand.logo,
+            ...(data.brand.logo || {})
+          }
+        };
       }
       
-      // Social Media
+      // Update social media links
       if (data.social) {
-        this.social = { ...this.social, ...data.social };
+        this.social = {
+          ...this.social,
+          ...data.social
+        };
       }
       
-      // Contact info
+      // Update contact settings
       if (data.contact) {
-        this.contact = { ...this.contact, ...data.contact };
+        this.contact = {
+          ...this.contact,
+          ...data.contact
+        };
       }
-
-      // Features
+      
+      // Update feature flags and settings
       if (data.features) {
-        const features = data.features;
-        
-        // Handle nested objects
-        if (features.shop) {
-          this.features.shop = { ...this.features.shop, ...features.shop };
-        }
-        
-        if (features.cart) {
-          this.features.cart = { ...this.features.cart, ...features.cart };
-        }
-        
-        if (features.authentication) {
-          this.features.authentication = { ...this.features.authentication, ...features.authentication };
-        }
+        this.features = {
+          ...this.features,
+          ...data.features,
+          shop: {
+            ...this.features.shop,
+            ...(data.features.shop || {})
+          },
+          cart: {
+            ...this.features.cart,
+            ...(data.features.cart || {})
+          },
+          authentication: {
+            ...this.features.authentication,
+            ...(data.features.authentication || {})
+          }
+        };
       }
-
-      // Integration
+      
+      // Update integration settings
       if (data.integration) {
-        const integration = data.integration;
-        
-        if (integration.printify) {
-          this.integration.printify = { ...this.integration.printify, ...integration.printify };
-        }
+        this.integration = {
+          ...this.integration,
+          ...data.integration,
+          printify: {
+            ...this.integration.printify,
+            ...(data.integration.printify || {})
+          }
+        };
       }
-
-      // SEO
+      
+      // Update SEO configuration
       if (data.seo) {
-        this.seo = { ...this.seo, ...data.seo };
+        this.seo = {
+          ...this.seo,
+          ...data.seo
+        };
+        
+        // Update document title if available
+        if (this.seo.defaultTitle) {
+          document.title = this.seo.defaultTitle;
+        }
+        
+        // Update meta description if available
+        this.updateMetaTags();
       }
+      
+      return data;
+    },
+
+    /**
+     * Update meta tags based on SEO configuration
+     * This helps with search engine optimization
+     */
+    updateMetaTags() {
+      // Update description meta tag
+      let descriptionMeta = document.querySelector('meta[name="description"]');
+      if (!descriptionMeta && this.seo.defaultDescription) {
+        descriptionMeta = document.createElement('meta');
+        descriptionMeta.setAttribute('name', 'description');
+        document.head.appendChild(descriptionMeta);
+      }
+      
+      if (descriptionMeta && this.seo.defaultDescription) {
+        descriptionMeta.setAttribute('content', this.seo.defaultDescription);
+      }
+      
+      // Update keywords meta tag
+      let keywordsMeta = document.querySelector('meta[name="keywords"]');
+      if (!keywordsMeta && this.seo.defaultKeywords) {
+        keywordsMeta = document.createElement('meta');
+        keywordsMeta.setAttribute('name', 'keywords');
+        document.head.appendChild(keywordsMeta);
+      }
+      
+      if (keywordsMeta && this.seo.defaultKeywords) {
+        keywordsMeta.setAttribute('content', this.seo.defaultKeywords);
+      }
+      
+      // Add Open Graph meta tags
+      this.updateOpenGraphTags();
     },
     
+    /**
+     * Update Open Graph meta tags for better social media sharing
+     */
+    updateOpenGraphTags() {
+      const ogTags = {
+        'og:title': this.seo.defaultTitle,
+        'og:description': this.seo.defaultDescription,
+        'og:type': 'website',
+        'og:url': window.location.href,
+        'og:image': this.brand.logo?.main ? window.location.origin + this.brand.logo.main : null
+      };
+      
+      Object.entries(ogTags).forEach(([property, content]) => {
+        if (!content) return;
+        
+        let metaTag = document.querySelector(`meta[property="${property}"]`);
+        if (!metaTag) {
+          metaTag = document.createElement('meta');
+          metaTag.setAttribute('property', property);
+          document.head.appendChild(metaTag);
+        }
+        
+        metaTag.setAttribute('content', content);
+      });
+    },
+
     /**
      * Fetch all public configuration information
      * No authentication required

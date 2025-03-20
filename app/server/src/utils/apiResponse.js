@@ -49,9 +49,10 @@ class APIResponse {
 
         return {
             success: false,
-            data: null,
-            message: null,
+            data: context,
+            message: error?.message || 'An unexpected error occurred',
             error: clientMessage || 'An unexpected error occurred',
+            errorDetails: error.stack?.split('\n'),
             requestId
         };
     }

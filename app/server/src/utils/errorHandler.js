@@ -68,9 +68,10 @@ const errorHandler = (err, req, res, next) => {
     // Handle custom API errors
     if (err instanceof APIError) {
       return res.sendError(
-        err,
+        err.message,
         err.userMessage,
-        err.statusCode
+        err.statusCode,
+        err.data
       );
     }
 

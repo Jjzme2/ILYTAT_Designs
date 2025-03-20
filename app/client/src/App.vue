@@ -9,6 +9,7 @@
 import { defineComponent, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { useUIStore } from '@/stores/ui'
+import { useSystemStore } from '@/stores/system'
 import ModalManager from '@/components/ModalManager.vue'
 
 export default defineComponent({
@@ -21,6 +22,7 @@ export default defineComponent({
   setup() {
     const authStore = useAuthStore()
     const uiStore = useUIStore()
+    const systemStore = useSystemStore()
 
     onMounted(() => {
       // Initialize authentication state
@@ -28,10 +30,14 @@ export default defineComponent({
       
       // Apply saved theme
       uiStore.applyTheme()
+        
+      // Initialize system state
+      systemStore.initialize()
     })
 
     return {
-      uiStore
+      uiStore,
+      systemStore
     }
   }
 })

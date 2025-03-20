@@ -144,24 +144,28 @@ class AuthService {
   static async checkExistingUser(email, username) {
     const existingEmail = await User.findOne({ where: { email } });
     if (existingEmail) {
-      throw new APIError({
-        message: 'Email already registered',
-        statusCode: 409,
-        validationErrors: {
-          email: 'This email is already registered'
+      throw new APIError(
+        'Email already registered', 
+        409, 
+        { 
+          validationErrors: {
+            email: 'This email is already registered'
+          }
         }
-      });
+      );
     }
 
     const existingUsername = await User.findOne({ where: { username } });
     if (existingUsername) {
-      throw new APIError({
-        message: 'Username already taken',
-        statusCode: 409,
-        validationErrors: {
-          username: 'This username is already taken'
+      throw new APIError(
+        'Username already taken', 
+        409, 
+        {
+          validationErrors: {
+            username: 'This username is already taken'
+          }
         }
-      });
+      );
     }
   }
 

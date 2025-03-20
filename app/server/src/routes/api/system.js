@@ -7,6 +7,7 @@
 
 const systemController = require('../../controllers/systemController');
 const { authenticateToken } = require('../../middleware/auth');
+const { applyRateLimiter } = require('../../middleware/security');
 const { PERMISSIONS, checkPermission } = require('../../middleware/permissions');
 
 /**
@@ -28,7 +29,13 @@ const ROUTES = {
   // Statistics and monitoring
   STATS: '/stats',
   PERFORMANCE: '/performance',
-  MEMORY: '/memory'
+  MEMORY: '/memory',
+  
+  // Server time
+  TIME: '/time',
+
+  // Stripe status
+  STRIPE_STATUS: '/stripe/status'
 };
 
 /**
@@ -41,6 +48,16 @@ const systemRoutes = (router) => {
   // Basic health check (limited info, publicly accessible)
   router.get(ROUTES.HEALTH, systemController.getHealthStatus);
   
+  // Server time endpoint (publicly accessible)
+  router.get(ROUTES.TIME, systemController.getServerTime);
+  
+  // Stripe status endpoint (publicly accessible)
+  router.get(
+    ROUTES.STRIPE_STATUS,
+    applyRateLimiter,
+    systemController.getStripeStatus
+  );
+
   // === USER ROUTES ===
   
   // Health summary (authenticated users can see basic system health)
