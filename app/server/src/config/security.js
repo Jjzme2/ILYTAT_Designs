@@ -2,16 +2,14 @@
  * Security configuration settings
  */
 
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://127.0.0.1:3000'
-];
+// Remove hard-coded allowedOrigins array and use environment variables instead
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? (process.env.ALLOWED_ORIGINS?.split(',') || ['https://ilytat-designs.herokuapp.com', 'https://ilytat.com'])
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'];
 
 module.exports = {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? process.env.ALLOWED_ORIGINS?.split(',') || ['https://yourdomain.com']
-      : ['http://localhost:5173', 'http://localhost:3000'],
+    origin: allowedOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']

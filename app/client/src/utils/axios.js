@@ -2,8 +2,10 @@ import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import { useUIStore } from '@/stores/ui'
 
+// In production, we use relative URLs which will resolve to the same domain
+// This ensures it works with Heroku or any other host without hard-coding domains
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+  baseURL: import.meta.env.VITE_API_URL || (import.meta.env.PROD ? '' : 'http://localhost:3000'),
   timeout: 15000,
   withCredentials: true,
   headers: {
