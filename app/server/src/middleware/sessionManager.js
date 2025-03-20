@@ -128,7 +128,7 @@ class SessionManager {
     try {
       const result = await Session.update(
         { is_valid: false },
-        { where: { user_id: userId } }
+        { where: { id: userId } }
       )
       
       logger.info(`All sessions invalidated for user`, {
