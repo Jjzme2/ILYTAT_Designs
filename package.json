@@ -12,6 +12,7 @@
     "heroku-postbuild": "cd app/client && npm install && cd ../server && npm install && cd ../client && npm run build",
     "heroku-start": "cd app/server && npm start",
     "heroku-logs": "heroku logs --tail",
+    "heroku-migrate": "heroku run npx sequelize-cli db:migrate --app ilytat-designs",
     "heroku-bash": "heroku run bash",
     "heroku-config": "heroku config",
     "heroku-local": "heroku local",
