@@ -63,11 +63,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static badRequest(message, options = {}) {
-    return new APIError({
-      message: message || 'Bad Request',
-      statusCode: 400,
+    return new APIError(
+      message || 'Bad Request',
+      400,
       ...options
-    });
+    );
   }
 
   /**
@@ -77,11 +77,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static unauthorized(message, options = {}) {
-    return new APIError({
-      message: message || 'Unauthorized',
-      statusCode: 401,
+    return new APIError(
+      message || 'Unauthorized',
+      401,
       ...options
-    });
+    );
   }
 
   /**
@@ -91,11 +91,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static forbidden(message, options = {}) {
-    return new APIError({
-      message: message || 'Forbidden',
-      statusCode: 403,
+    return new APIError(
+      message || 'Forbidden',
+      403,
       ...options
-    });
+    );
   }
 
   /**
@@ -105,11 +105,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static notFound(message, options = {}) {
-    return new APIError({
-      message: message || 'Resource not found',
-      statusCode: 404,
+    return new APIError(
+      message || 'Resource not found',
+      404,
       ...options
-    });
+    );
   }
 
   /**
@@ -119,11 +119,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static conflict(message, options = {}) {
-    return new APIError({
-      message: message || 'Conflict',
-      statusCode: 409,
+    return new APIError(
+      message || 'Conflict',
+      409,
       ...options
-    });
+    );
   }
 
   /**
@@ -134,12 +134,12 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static validationError(message, validationErrors, options = {}) {
-    return new APIError({
-      message: message || 'Validation Error',
-      statusCode: 422,
+    return new APIError(
+      message || 'Validation Error',
+      422,
       validationErrors,
       ...options
-    });
+    );
   }
 
   /**
@@ -149,11 +149,11 @@ class APIError extends Error {
    * @returns {APIError} New APIError instance
    */
   static serverError(message, options = {}) {
-    return new APIError({
-      message: message || 'Internal Server Error',
-      statusCode: 500,
+    return new APIError(
+      message || 'Internal Server Error',
+      500,
       ...options
-    });
+    );
   }
 }
 

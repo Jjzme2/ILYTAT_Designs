@@ -43,10 +43,10 @@ class PasswordManager {
       const user = await User.findOne({ where: { email } });
       
       if (!user) {
-        throw new APIError({
-          message: 'User not found',
-          statusCode: 404
-        });
+        throw new APIError(
+          'User not found',
+          404
+        );
       }
       
       const hashedPassword = await this.hashPassword(newPassword);
@@ -70,11 +70,11 @@ class PasswordManager {
       logger.error('Password reset failed:', error);
       throw error instanceof APIError 
         ? error 
-        : new APIError({
-            message: 'Password reset failed',
-            statusCode: 500,
-            error
-          });
+        : new APIError(
+            'Password reset failed',
+            500,
+            { error }
+          );
     }
   }
   
@@ -88,10 +88,10 @@ class PasswordManager {
       const user = await User.findOne({ where: { email } });
       
       if (!user) {
-        throw new APIError({
-          message: 'User not found',
-          statusCode: 404
-        });
+        throw new APIError(
+          'User not found',
+          404
+        );
       }
       
       await user.update({
@@ -113,11 +113,11 @@ class PasswordManager {
       logger.error('Email verification update failed:', error);
       throw error instanceof APIError 
         ? error 
-        : new APIError({
-            message: 'Email verification update failed',
-            statusCode: 500,
-            error
-          });
+        : new APIError( 
+            'Email verification update failed',
+            500,
+            { error }
+          );
     }
   }
 }

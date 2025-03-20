@@ -129,11 +129,11 @@ class AuthService {
         return acc;
       }, {});
       
-      throw new APIError({
-        message: 'Missing required fields',
+      throw new APIError(
+        'Missing required fields',
         validationErrors,
-        statusCode: 400
-      });
+        400
+      );
     }
   }
 
@@ -280,10 +280,10 @@ class AuthService {
       });
 
       if (!user) {
-        throw new APIError({
-          message: 'Invalid or expired verification token',
-          statusCode: 400
-        });
+        throw new APIError(
+          'Invalid or expired verification token',
+          400
+        );
       }
 
       await user.update({
@@ -313,17 +313,17 @@ class AuthService {
       const user = await User.findOne({ where: { email } });
       
       if (!user) {
-        throw new APIError({
-          message: 'User not found',
-          statusCode: 404
-        });
+        throw new APIError(
+          'User not found',
+          404
+        );
       }
       
       if (user.is_verified) {
-        throw new APIError({
-          message: 'Email is already verified',
-          statusCode: 400
-        });
+        throw new APIError( 
+          'Email is already verified',
+          400
+        );
       }
       
       const verificationToken = this.generateRandomToken();
@@ -364,10 +364,10 @@ class AuthService {
       
       // Validate required fields
       if (!credentials.email || !credentials.password) {
-        throw new APIError({
-          message: 'Email and password are required',
-          statusCode: 400
-        });
+        throw new APIError(
+          'Email and password are required',
+          400
+        );
       }
 
       // Check rate limiting
@@ -379,10 +379,10 @@ class AuthService {
       });
 
       if (!user) {
-        throw new APIError({
-          message: 'Invalid credentials, user not found',
-          statusCode: 401
-        });
+        throw new APIError(
+          'Invalid credentials, user not found',
+          401
+        );
       }
 
       // Check if account is locked
@@ -476,10 +476,10 @@ class AuthService {
     const attempts = await this.getLoginAttempts(ipAddress);
     
     if (attempts >= config.rateLimit.maxLoginAttempts) {
-      throw new APIError({
-        message: 'Too many login attempts. Please try again later.',
-        statusCode: 429
-      });
+      throw new APIError(
+        'Too many login attempts. Please try again later.',
+        429
+      );
     }
   }
 
@@ -489,10 +489,10 @@ class AuthService {
    */
   static async checkAccountLock(user) {
     if (user.lock_until && user.lock_until > new Date()) {
-      throw new APIError({
-        message: 'Account is temporarily locked. Try again later.',
-        statusCode: 403
-      });
+      throw new APIError(
+        'Account is temporarily locked. Try again later.',
+        403
+      );
     }
   }
 
@@ -522,10 +522,10 @@ class AuthService {
     if (!isValidPassword) {
       await this.handleFailedLoginAttempt(user);
       
-      throw new APIError({
-        message: 'Invalid credentials, invalid password.',
-        statusCode: 401
-      });
+      throw new APIError(
+        'Invalid credentials, invalid password.',
+        401
+      );
     }
     
     // Reset login attempts and lock on successful login
@@ -564,10 +564,10 @@ class AuthService {
         lockDuration: `${this.LOCK_DURATION / 60000} minutes`
       });
       
-      throw new APIError({
-        message: 'Account locked after multiple failed attempts. Try again in 30 minutes.',
-        statusCode: 403
-      });
+      throw new APIError(
+        'Account locked after multiple failed attempts. Try again in 30 minutes.',
+        403
+      );
     }
     
     // Just increment attempts
@@ -582,15 +582,15 @@ class AuthService {
    */
   static async checkEmailVerification(user) {
     if (!user.is_verified) {
-      throw new APIError({
-        message: 'Email not verified. Please verify your email before logging in.',
-        statusCode: 403,
-        details: {
+      throw new APIError(
+        'Email not verified. Please verify your email before logging in.',
+        403,
+        {
           requiresVerification: true,
           email: user.email,
           userId: user.id
         }
-      });
+      );
     }
   }
 
@@ -636,10 +636,10 @@ class AuthService {
       };
     } catch (error) {
       logger.error('Token refresh failed', { error: error.message });
-      throw new APIError({
-        message: 'Token refresh failed. Please login again.',
-        statusCode: 401
-      });
+      throw new APIError(
+        'Token refresh failed. Please login again.',
+        401
+      );
     }
   }
 
@@ -686,10 +686,10 @@ class AuthService {
         error: error.message,
         email
       });
-      throw new APIError({
-        message: 'Failed to resend verification email',
-        statusCode: 500
-      });
+      throw new APIError(
+        'Failed to resend verification email',
+        500
+      );
     }
   }
 
@@ -699,10 +699,10 @@ class AuthService {
    */
   static validateRefreshToken(refreshToken) {
     if (!refreshToken) {
-      throw new APIError({
-        message: 'Refresh token is required',
-        statusCode: 400
-      });
+      throw new APIError(
+        'Refresh token is required',
+        400
+      );
     }
   }
 
@@ -714,10 +714,10 @@ class AuthService {
     const user = await User.findByPk(userId);
     
     if (!user) {
-      throw new APIError({
-        message: 'User not found',
-        statusCode: 404
-      });
+      throw new APIError(
+        'User not found',
+        404
+      );
     }
     
     return user;
@@ -740,10 +740,10 @@ class AuthService {
         token: this.redactSensitiveInfo(token)
       });
       
-      throw new APIError({
-        message: 'Password reset token is invalid or has expired',
-        statusCode: 400
-      });
+      throw new APIError(
+        'Password reset token is invalid or has expired',
+        400
+      );
     }
     
     logger.debug('Found user by reset token', {
@@ -858,10 +858,10 @@ class AuthService {
    */
   static validatePasswordStrength(password) {
     if (!password || password.length < config.password.minLength) {
-      throw new APIError({
-        message: `Password must be at least ${config.password.minLength} characters`,
-        statusCode: 400
-      });
+      throw new APIError(
+        `Password must be at least ${config.password.minLength} characters`,
+        400
+      );
     }
   }
 
@@ -891,10 +891,10 @@ class AuthService {
   static async logoutUser(token) {
     try {
       if (!token) {
-        throw new APIError({
-          message: 'Token is required',
-          statusCode: 400
-        });
+        throw new APIError(
+          'Token is required',
+          400
+        );
       }
       
       await SessionManager.invalidateSession(token);
@@ -960,10 +960,10 @@ class AuthService {
   static async verifyCurrentPassword(user, currentPassword) {
     const isValidPassword = await user.validatePassword(currentPassword);
     if (!isValidPassword) {
-      throw new APIError({
-        message: 'Current password is incorrect',
-        statusCode: 400
-      });
+      throw new APIError(
+        'Current password is incorrect',
+        400
+      );
     }
   }
 
@@ -1004,10 +1004,10 @@ class AuthService {
    * @private
    */
   static handleError(error, defaultMessage, statusCode = 500) {
-    return error instanceof APIError ? error : new APIError({
-      message: error.message || defaultMessage,
+    return error instanceof APIError ? error : new APIError(
+      error.message || defaultMessage,
       statusCode
-    });
+    );
   }
 }
 

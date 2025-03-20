@@ -189,10 +189,10 @@ const debugController = {
         stack: error.stack
       });
       
-      return next(new APIError({
-        message: `Debug test failed: ${error.message}`,
-        statusCode: 500
-      }));
+      return next(new APIError(
+        `Debug test failed: ${error.message}`,
+        500
+      ));
     }
   },
 
@@ -204,10 +204,10 @@ const debugController = {
       const { password } = req.body;
       
       if (!password) {
-        return next(new APIError({
-          message: 'Password is required',
-          statusCode: 400
-        }));
+        return next(new APIError(
+          'Password is required',
+          400
+        ));
       }
       
       const salt = await bcrypt.genSalt(10);
@@ -222,10 +222,10 @@ const debugController = {
         hashedPasswordLength: hashedPassword.length
       });
     } catch (error) {
-      return next(new APIError({
-        message: `Failed to hash password: ${error.message}`,
-        statusCode: 500
-      }));
+      return next(new APIError(
+        `Failed to hash password: ${error.message}`,
+        500
+      ));
     }
   }
 };
